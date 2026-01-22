@@ -13,13 +13,18 @@ export interface PhotoPickerProps {
  * A hidden file input that opens the device's photo picker.
  * Use onTriggerReady to get a function that opens the picker.
  *
+ * IMPORTANT: When storing the trigger in React state, you must wrap it
+ * in an arrow function to prevent React from treating it as a functional
+ * state updater and calling it immediately.
+ *
  * Example:
  * ```tsx
  * const [trigger, setTrigger] = useState<(() => void) | null>(null)
  *
  * <PhotoPicker
  *   onPhotoSelect={handlePhoto}
- *   onTriggerReady={setTrigger}
+ *   // Wrap in arrow function to prevent immediate invocation!
+ *   onTriggerReady={(fn) => setTrigger(() => fn)}
  * />
  *
  * <button onClick={() => trigger?.()}>Choose Photo</button>
@@ -32,11 +37,14 @@ export const PhotoPicker = ({
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Expose trigger function to parent
+  // Note: We wrap in an extra arrow function to prevent React from
+  // interpreting this as a functional state updater and calling it immediately
   useEffect(() => {
     if (onTriggerReady && inputRef.current) {
-      onTriggerReady(() => {
+      const triggerFn = () => {
         inputRef.current?.click()
-      })
+      }
+      onTriggerReady(triggerFn)
     }
   }, [onTriggerReady])
 
