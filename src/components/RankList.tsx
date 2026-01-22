@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import type { Card } from '../lib/types'
 import { RankCard } from './RankCard'
 import { springConfig } from '../styles/tokens'
@@ -33,8 +34,11 @@ const EmptyList = () => (
   </div>
 )
 
+const LONG_PRESS_DURATION = 500 // ms
+
 /**
  * Individual draggable card wrapper with Framer Motion
+ * Supports both drag handle click and long-press anywhere on card
  */
 const DraggableCard = ({
   card,
@@ -48,7 +52,92 @@ const DraggableCard = ({
   onTap: (id: string) => void
 }) => {
   const [isDragging, setIsDragging] = useState(false)
+  const [isLongPressing, setIsLongPressing] = useState(false)
   const dragControls = useDragControls()
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressTriggered = useRef(false)
+  const pointerStartPos = useRef<{ x: number; y: number } | null>(null)
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+    setIsLongPressing(false)
+  }
+
+  const handlePointerDown = (e: ReactPointerEvent) => {
+    const target = e.target as HTMLElement
+
+    // Immediate drag if clicking the handle
+    if (target.closest('[data-testid="drag-handle"]')) {
+      dragControls.start(e)
+      return
+    }
+
+    // Start long-press timer for anywhere else on the card
+    longPressTriggered.current = false
+    pointerStartPos.current = { x: e.clientX, y: e.clientY }
+    setIsLongPressing(true)
+
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true
+      setIsLongPressing(false)
+      dragControls.start(e)
+    }, LONG_PRESS_DURATION)
+  }
+
+  const handlePointerMove = (e: ReactPointerEvent) => {
+    // Cancel long-press if moved more than 10px (prevents accidental drag while scrolling)
+    if (pointerStartPos.current && longPressTimer.current) {
+      const dx = Math.abs(e.clientX - pointerStartPos.current.x)
+      const dy = Math.abs(e.clientY - pointerStartPos.current.y)
+      if (dx > 10 || dy > 10) {
+        clearLongPress()
+      }
+    }
+  }
+
+  const handlePointerUp = () => {
+    clearLongPress()
+    pointerStartPos.current = null
+  }
+
+  const handlePointerCancel = () => {
+    clearLongPress()
+    pointerStartPos.current = null
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => clearLongPress()
+  }, [])
+
+  // Determine visual state
+  const getAnimationState = () => {
+    if (isDragging) {
+      return {
+        scale: 1.02,
+        rotate: 1,
+        zIndex: 50,
+        boxShadow: '6px 6px 0px 0px #2d2d2d',
+      }
+    }
+    if (isLongPressing) {
+      return {
+        scale: 0.98,
+        rotate: -0.5,
+        zIndex: 10,
+        boxShadow: '2px 2px 0px 0px #2d2d2d',
+      }
+    }
+    return {
+      scale: 1,
+      rotate: 0,
+      zIndex: 0,
+      boxShadow: '4px 4px 0px 0px #2d2d2d',
+    }
+  }
 
   return (
     <Reorder.Item
@@ -57,17 +146,19 @@ const DraggableCard = ({
       dragListener={false}
       dragControls={dragControls}
       onDragStart={() => setIsDragging(true)}
-      onDragEnd={() => setIsDragging(false)}
+      onDragEnd={() => {
+        setIsDragging(false)
+        setIsLongPressing(false)
+        longPressTriggered.current = false
+      }}
       initial={{ opacity: 0, y: 20 }}
       animate={{
         opacity: 1,
         y: 0,
-        scale: isDragging ? 1.02 : 1,
-        rotate: isDragging ? 1 : 0,
-        zIndex: isDragging ? 50 : 0,
+        ...getAnimationState(),
       }}
       exit={{ opacity: 0, y: -20 }}
-      transition={springConfig.default}
+      transition={isLongPressing ? { duration: 0.15 } : springConfig.default}
       whileDrag={{
         scale: 1.05,
         boxShadow: '8px 8px 0px 0px #2d2d2d',
@@ -78,13 +169,11 @@ const DraggableCard = ({
       className="relative"
     >
       <div
-        onPointerDown={(e) => {
-          // Only start drag if clicking the handle
-          const target = e.target as HTMLElement
-          if (target.closest('[data-testid="drag-handle"]')) {
-            dragControls.start(e)
-          }
-        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        style={{ touchAction: 'pan-y' }}
       >
         <RankCard
           id={card.id}
@@ -92,7 +181,7 @@ const DraggableCard = ({
           rank={rank}
           thumbnailUrl={thumbnailUrl}
           notes={card.notes}
-          isDragging={isDragging}
+          isDragging={isDragging || isLongPressing}
           onTap={onTap}
         />
       </div>
@@ -107,7 +196,8 @@ const DraggableCard = ({
  * Uses Framer Motion Reorder for smooth drag-and-drop.
  *
  * Features:
- * - Drag from handle only (rest of card is tappable)
+ * - Drag from handle (immediate) or long-press anywhere (500ms)
+ * - Visual feedback during long-press (card shrinks slightly)
  * - Smooth spring animations during reorder
  * - Cards slide and wobble when displaced
  * - Rank badges update live during drag
