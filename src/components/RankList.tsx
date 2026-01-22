@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import type { Card } from '../lib/types'
 import { RankCard } from './RankCard'
@@ -121,10 +121,22 @@ export const RankList = ({
 }: RankListProps) => {
   const [orderedCards, setOrderedCards] = useState(cards)
 
-  // Keep local state in sync with props
-  if (cards !== orderedCards && cards.length !== orderedCards.length) {
-    setOrderedCards(cards)
-  }
+  // Keep local state in sync with props when cards change (edit, add, delete)
+  useEffect(() => {
+    // Compare by checking if any card content changed
+    const cardsChanged = cards.length !== orderedCards.length ||
+      cards.some((card, i) => {
+        const orderedCard = orderedCards.find(c => c.id === card.id)
+        if (!orderedCard) return true
+        return card.name !== orderedCard.name ||
+               card.notes !== orderedCard.notes ||
+               card.updatedAt !== orderedCard.updatedAt
+      })
+
+    if (cardsChanged) {
+      setOrderedCards(cards)
+    }
+  }, [cards])
 
   const handleReorder = useCallback((newOrder: Card[]) => {
     // Find the indices that changed
