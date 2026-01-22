@@ -8,6 +8,8 @@ export interface BoardGridProps {
   cardCounts: Record<string, number>
   /** Map of board ID to preview thumbnail URLs (max 3 per board) */
   previewUrls?: Record<string, string[]>
+  /** Map of board ID to cover image blob URL */
+  coverImageUrls?: Record<string, string>
   /** Called when a board card is clicked */
   onBoardClick: (boardId: string) => void
 }
@@ -26,6 +28,7 @@ export const BoardGrid = ({
   boards,
   cardCounts,
   previewUrls = {},
+  coverImageUrls = {},
   onBoardClick,
 }: BoardGridProps) => {
   return (
@@ -40,7 +43,7 @@ export const BoardGrid = ({
           name={board.name}
           cardCount={cardCounts[board.id] ?? 0}
           previewUrls={previewUrls[board.id]}
-          coverImageUrl={board.coverImage}
+          coverImageUrl={coverImageUrls[board.id] ?? null}
           onClick={onBoardClick}
         />
       ))}

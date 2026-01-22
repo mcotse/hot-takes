@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useBoards } from '../hooks/useBoards'
+import { useImageStorage } from '../hooks/useImageStorage'
 import { getCardsByBoard } from '../lib/storage'
 import { BoardGrid } from '../components/BoardGrid'
 import { Button } from '../components/ui/Button'
@@ -145,7 +146,9 @@ const CreateBoardModal = ({
  */
 export const BoardsPage = ({ onBoardSelect }: BoardsPageProps) => {
   const { boards, createBoard } = useBoards()
+  const { getImageUrl } = useImageStorage()
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [coverImageUrls, setCoverImageUrls] = useState<Record<string, string>>({})
 
   // Calculate card counts for each board
   const cardCounts = useMemo(() => {
@@ -155,6 +158,32 @@ export const BoardsPage = ({ onBoardSelect }: BoardsPageProps) => {
     })
     return counts
   }, [boards])
+
+  // Load cover image URLs for boards with cover images
+  useEffect(() => {
+    let cancelled = false
+
+    const loadCoverImages = async () => {
+      const urls: Record<string, string> = {}
+      for (const board of boards) {
+        if (cancelled) return
+        if (board.coverImage) {
+          const url = await getImageUrl(board.coverImage)
+          if (url) {
+            urls[board.id] = url
+          }
+        }
+      }
+      if (!cancelled) {
+        setCoverImageUrls(urls)
+      }
+    }
+    loadCoverImages()
+
+    return () => {
+      cancelled = true
+    }
+  }, [boards, getImageUrl])
 
   // Get preview URLs (top 3 cards' thumbnails) for each board
   // TODO: Implement when image URLs are available from useImageStorage
@@ -208,6 +237,7 @@ export const BoardsPage = ({ onBoardSelect }: BoardsPageProps) => {
           boards={boards}
           cardCounts={cardCounts}
           previewUrls={previewUrls}
+          coverImageUrls={coverImageUrls}
           onBoardClick={handleBoardClick}
         />
       ) : (
