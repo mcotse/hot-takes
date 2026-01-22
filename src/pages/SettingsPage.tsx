@@ -222,10 +222,10 @@ export const SettingsPage = () => {
           : ''
         showFeedback(
           'success',
-          `Loaded Singles Inferno S5! Added ${result.cardsCreated} cast members with ${result.imagesLoaded} photos.${errorNote}`
+          `Loaded Singles Inferno S5! Created 2 boards with ${result.cardsCreated} cast members and ${result.imagesLoaded} photos.${errorNote}`
         )
-      } else if (result.errors.includes('Singles Inferno S5 board already exists')) {
-        showFeedback('warning', 'Singles Inferno S5 board already exists!')
+      } else if (result.errors.includes('Singles Inferno S5 boards already exist')) {
+        showFeedback('warning', 'Singles Inferno S5 boards already exist!')
       } else {
         showFeedback('error', result.errors.join(', ') || 'Failed to load seed data')
       }
@@ -350,7 +350,7 @@ export const SettingsPage = () => {
               className="text-[#2d2d2d]/70 text-sm mb-3"
               style={{ fontFamily: "'Patrick Hand', cursive" }}
             >
-              13 cast members (6 female, 7 male) from Netflix's hit dating show
+              2 boards: 6 women + 7 men from Netflix's hit dating show
             </p>
             <Button
               onClick={handleLoadSeedData}

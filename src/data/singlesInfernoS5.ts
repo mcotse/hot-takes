@@ -10,7 +10,8 @@ import { saveBoard, saveCard, getBoard } from '../lib/storage'
 import { saveImage } from '../lib/db'
 import { processImage } from '../lib/imageUtils'
 
-const BOARD_ID = 'singles-inferno-s5-seed'
+const WOMEN_BOARD_ID = 'singles-inferno-s5-women'
+const MEN_BOARD_ID = 'singles-inferno-s5-men'
 
 /**
  * Singles Inferno S5 poster image URL
@@ -186,23 +187,28 @@ export const loadSinglesInfernoS5 = async (
   const errors: string[] = []
   let imagesLoaded = 0
   let cardsCreated = 0
-  let boardCreated = false
+  let boardsCreated = 0
 
-  const totalSteps = castMembers.length + 1 // +1 for board/poster
+  // Split cast by gender
+  const women = castMembers.filter(m => m.gender === 'female')
+  const men = castMembers.filter(m => m.gender === 'male')
 
-  // Check if board already exists
-  const existingBoard = getBoard(BOARD_ID)
-  if (existingBoard) {
+  const totalSteps = castMembers.length + 2 // +2 for two board posters
+
+  // Check if boards already exist
+  const existingWomenBoard = getBoard(WOMEN_BOARD_ID)
+  const existingMenBoard = getBoard(MEN_BOARD_ID)
+  if (existingWomenBoard || existingMenBoard) {
     return {
       success: true,
       boardCreated: false,
       cardsCreated: 0,
       imagesLoaded: 0,
-      errors: ['Singles Inferno S5 board already exists'],
+      errors: ['Singles Inferno S5 boards already exist'],
     }
   }
 
-  // Step 1: Create board and fetch poster image
+  // Step 1: Create Women's board and fetch poster image
   onProgress?.(0, totalSteps, 'Loading poster...')
 
   let coverImageKey: string | null = null
@@ -210,7 +216,7 @@ export const loadSinglesInfernoS5 = async (
     const posterBlob = await fetchImageAsBlob(POSTER_URL)
     const processed = await processImage(posterBlob)
 
-    coverImageKey = `poster-${BOARD_ID}`
+    coverImageKey = `poster-${WOMEN_BOARD_ID}`
     await saveImage({
       key: coverImageKey,
       blob: processed.fullBlob,
@@ -223,26 +229,39 @@ export const loadSinglesInfernoS5 = async (
     errors.push(`Failed to load poster: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 
-  // Create board
-  const board: Board = {
-    id: BOARD_ID,
-    name: 'Singles Inferno S5',
+  // Create Women's board
+  const womenBoard: Board = {
+    id: WOMEN_BOARD_ID,
+    name: 'Singles Inferno S5 👩',
     coverImage: coverImageKey,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
   }
-  saveBoard(board)
-  boardCreated = true
+  saveBoard(womenBoard)
+  boardsCreated++
 
-  // Step 2: Create cards and fetch images for each cast member
-  for (let i = 0; i < castMembers.length; i++) {
-    const member = castMembers[i]
-    onProgress?.(i + 1, totalSteps, `Loading ${member.name}...`)
+  // Step 2: Create Men's board (reuse same poster)
+  onProgress?.(1, totalSteps, 'Creating boards...')
+
+  const menBoard: Board = {
+    id: MEN_BOARD_ID,
+    name: 'Singles Inferno S5 👨',
+    coverImage: coverImageKey, // Reuse same poster
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+  }
+  saveBoard(menBoard)
+  boardsCreated++
+
+  // Step 3: Create cards for women
+  for (let i = 0; i < women.length; i++) {
+    const member = women[i]
+    onProgress?.(i + 2, totalSteps, `Loading ${member.name}...`)
 
     let imageKey: string | null = null
 
-    // Fetch and process image
     try {
       const imageBlob = await fetchImageAsBlob(member.imageUrl)
       const processed = await processImage(imageBlob)
@@ -261,13 +280,54 @@ export const loadSinglesInfernoS5 = async (
       errors.push(`Failed to load image for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
 
-    // Create card
     const card: Card = {
       id: member.id,
-      boardId: BOARD_ID,
+      boardId: WOMEN_BOARD_ID,
       name: member.name,
       imageKey,
-      thumbnailKey: imageKey, // Use same key, db stores both
+      thumbnailKey: imageKey,
+      imageCrop: null,
+      notes: member.notes,
+      metadata: { gender: member.gender, season: 5 },
+      rank: i + 1,
+      createdAt: now,
+      updatedAt: now,
+    }
+    saveCard(card)
+    cardsCreated++
+  }
+
+  // Step 4: Create cards for men
+  for (let i = 0; i < men.length; i++) {
+    const member = men[i]
+    onProgress?.(women.length + i + 2, totalSteps, `Loading ${member.name}...`)
+
+    let imageKey: string | null = null
+
+    try {
+      const imageBlob = await fetchImageAsBlob(member.imageUrl)
+      const processed = await processImage(imageBlob)
+
+      imageKey = `image-${member.id}`
+
+      await saveImage({
+        key: imageKey,
+        blob: processed.fullBlob,
+        thumbnail: processed.thumbnailBlob,
+        mimeType: processed.mimeType,
+        createdAt: now,
+      })
+      imagesLoaded++
+    } catch (error) {
+      errors.push(`Failed to load image for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+
+    const card: Card = {
+      id: member.id,
+      boardId: MEN_BOARD_ID,
+      name: member.name,
+      imageKey,
+      thumbnailKey: imageKey,
       imageCrop: null,
       notes: member.notes,
       metadata: { gender: member.gender, season: 5 },
@@ -283,7 +343,7 @@ export const loadSinglesInfernoS5 = async (
 
   return {
     success: true,
-    boardCreated,
+    boardCreated: boardsCreated > 0,
     cardsCreated,
     imagesLoaded,
     errors,
@@ -296,29 +356,57 @@ export const loadSinglesInfernoS5 = async (
  */
 export const getSinglesInfernoS5Json = (): string => {
   const now = Date.now()
+  const women = castMembers.filter(m => m.gender === 'female')
+  const men = castMembers.filter(m => m.gender === 'male')
+
   return JSON.stringify({
     version: '1.0',
-    boards: [{
-      id: BOARD_ID,
-      name: 'Singles Inferno S5',
-      coverImage: null,
-      createdAt: now,
-      updatedAt: now,
-      deletedAt: null,
-    }],
-    cards: castMembers.map((member, index) => ({
-      id: member.id,
-      boardId: BOARD_ID,
-      name: member.name,
-      imageKey: null,
-      thumbnailKey: null,
-      imageCrop: null,
-      notes: member.notes,
-      metadata: { gender: member.gender, season: 5 },
-      rank: index + 1,
-      createdAt: now,
-      updatedAt: now,
-    })),
+    boards: [
+      {
+        id: WOMEN_BOARD_ID,
+        name: 'Singles Inferno S5 👩',
+        coverImage: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      },
+      {
+        id: MEN_BOARD_ID,
+        name: 'Singles Inferno S5 👨',
+        coverImage: null,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      },
+    ],
+    cards: [
+      ...women.map((member, index) => ({
+        id: member.id,
+        boardId: WOMEN_BOARD_ID,
+        name: member.name,
+        imageKey: null,
+        thumbnailKey: null,
+        imageCrop: null,
+        notes: member.notes,
+        metadata: { gender: member.gender, season: 5 },
+        rank: index + 1,
+        createdAt: now,
+        updatedAt: now,
+      })),
+      ...men.map((member, index) => ({
+        id: member.id,
+        boardId: MEN_BOARD_ID,
+        name: member.name,
+        imageKey: null,
+        thumbnailKey: null,
+        imageCrop: null,
+        notes: member.notes,
+        metadata: { gender: member.gender, season: 5 },
+        rank: index + 1,
+        createdAt: now,
+        updatedAt: now,
+      })),
+    ],
     exportedAt: now,
   }, null, 2)
 }
