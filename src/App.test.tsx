@@ -1,9 +1,56 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { App } from './App'
 
 describe('App', () => {
-  it('renders the app title', () => {
-    render(<App />)
-    expect(screen.getByRole('heading', { name: /rank it/i })).toBeInTheDocument()
+  describe('rendering', () => {
+    it('renders the app', () => {
+      render(<App />)
+      expect(screen.getByRole('navigation')).toBeInTheDocument()
+    })
+
+    it('renders TabBar with Boards and Settings tabs', () => {
+      render(<App />)
+      expect(screen.getByRole('button', { name: /boards/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('navigation', () => {
+    it('shows Boards view by default', () => {
+      render(<App />)
+      expect(screen.getByText(/my rankings/i)).toBeInTheDocument()
+    })
+
+    it('shows Boards tab as active by default', () => {
+      render(<App />)
+      const boardsTab = screen.getByRole('button', { name: /boards/i })
+      expect(boardsTab).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('switches to Settings view when Settings tab is clicked', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+
+      await user.click(screen.getByRole('button', { name: /settings/i }))
+      expect(screen.getByText(/settings/i, { selector: 'h1' })).toBeInTheDocument()
+    })
+
+    it('switches back to Boards view', async () => {
+      const user = userEvent.setup()
+      render(<App />)
+
+      await user.click(screen.getByRole('button', { name: /settings/i }))
+      await user.click(screen.getByRole('button', { name: /boards/i }))
+      expect(screen.getByText(/my rankings/i)).toBeInTheDocument()
+    })
+  })
+
+  describe('layout', () => {
+    it('has main content area with proper padding for TabBar', () => {
+      render(<App />)
+      const main = screen.getByRole('main')
+      expect(main).toHaveClass('pb-20')
+    })
   })
 })
