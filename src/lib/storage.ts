@@ -214,9 +214,135 @@ export const clearAllData = (): void => {
  */
 export const exportData = (): string => {
   return JSON.stringify({
+    version: '1.0',
     boards: getBoards(),
     cards: getCards(),
     settings: getSettings(),
     exportedAt: Date.now(),
   }, null, 2)
+}
+
+// ============ Import ============
+
+/**
+ * Import data format
+ */
+export interface ImportData {
+  version: string
+  boards: Board[]
+  cards: Card[]
+  settings?: AppSettings
+  exportedAt?: number
+}
+
+/**
+ * Validation result for import data
+ */
+export interface ValidationResult {
+  valid: boolean
+  errors: string[]
+}
+
+/**
+ * Import result
+ */
+export interface ImportResult {
+  success: boolean
+  error?: string
+  boardsImported?: number
+  cardsImported?: number
+}
+
+/**
+ * Validate import data structure
+ */
+export const validateImportData = (data: unknown): ValidationResult => {
+  const errors: string[] = []
+
+  if (typeof data !== 'object' || data === null) {
+    return { valid: false, errors: ['Data must be an object'] }
+  }
+
+  const obj = data as Record<string, unknown>
+
+  // Check version
+  if (typeof obj.version !== 'string') {
+    errors.push('Missing or invalid version field')
+  }
+
+  // Check boards array
+  if (!Array.isArray(obj.boards)) {
+    errors.push('boards must be an array')
+  }
+
+  // Check cards array
+  if (!Array.isArray(obj.cards)) {
+    errors.push('cards must be an array')
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  }
+}
+
+/**
+ * Import options
+ */
+export interface ImportOptions {
+  merge?: boolean // If true, merge with existing data. If false, replace.
+}
+
+/**
+ * Import data from JSON string
+ */
+export const importData = (
+  jsonString: string,
+  options: ImportOptions = { merge: true }
+): ImportResult => {
+  // Parse JSON
+  let data: unknown
+  try {
+    data = JSON.parse(jsonString)
+  } catch {
+    return { success: false, error: 'Invalid JSON format' }
+  }
+
+  // Validate structure
+  const validation = validateImportData(data)
+  if (!validation.valid) {
+    return { success: false, error: validation.errors.join(', ') }
+  }
+
+  const importData = data as ImportData
+
+  // Filter to only valid boards and cards
+  const validBoards = importData.boards.filter(isBoard)
+  const validCards = importData.cards.filter(isCard)
+
+  if (!options.merge) {
+    // Replace mode: clear existing data first
+    saveBoards([])
+    saveCards([])
+  }
+
+  // Get existing data for merge
+  const existingBoards = options.merge ? getBoards() : []
+  const existingCards = options.merge ? getCards() : []
+
+  // Merge boards (skip duplicates by ID)
+  const existingBoardIds = new Set(existingBoards.map((b) => b.id))
+  const newBoards = validBoards.filter((b) => !existingBoardIds.has(b.id))
+  saveBoards([...existingBoards, ...newBoards])
+
+  // Merge cards (skip duplicates by ID)
+  const existingCardIds = new Set(existingCards.map((c) => c.id))
+  const newCards = validCards.filter((c) => !existingCardIds.has(c.id))
+  saveCards([...existingCards, ...newCards])
+
+  return {
+    success: true,
+    boardsImported: newBoards.length,
+    cardsImported: newCards.length,
+  }
 }

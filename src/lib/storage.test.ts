@@ -15,6 +15,8 @@ import {
   saveSettings,
   clearAllData,
   exportData,
+  importData,
+  validateImportData,
 } from './storage'
 import { createBoard, createCard } from './types'
 
@@ -216,6 +218,109 @@ describe('localStorage Storage', () => {
       expect(parsed.boards).toHaveLength(1)
       expect(parsed.cards).toHaveLength(1)
       expect(parsed.exportedAt).toBeDefined()
+    })
+  })
+
+  describe('Import Data', () => {
+    it('validates correct import data format', () => {
+      const validData = {
+        version: '1.0',
+        boards: [{ id: '1', name: 'Test', createdAt: 1, updatedAt: 1, coverImage: null, deletedAt: null }],
+        cards: [],
+      }
+
+      const result = validateImportData(validData)
+      expect(result.valid).toBe(true)
+      expect(result.errors).toHaveLength(0)
+    })
+
+    it('rejects data without version', () => {
+      const invalidData = {
+        boards: [],
+        cards: [],
+      }
+
+      const result = validateImportData(invalidData)
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain('Missing or invalid version field')
+    })
+
+    it('rejects data with invalid boards array', () => {
+      const invalidData = {
+        version: '1.0',
+        boards: 'not an array',
+        cards: [],
+      }
+
+      const result = validateImportData(invalidData)
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain('boards must be an array')
+    })
+
+    it('rejects data with invalid cards array', () => {
+      const invalidData = {
+        version: '1.0',
+        boards: [],
+        cards: 'not an array',
+      }
+
+      const result = validateImportData(invalidData)
+      expect(result.valid).toBe(false)
+      expect(result.errors).toContain('cards must be an array')
+    })
+
+    it('imports valid data and merges with existing', () => {
+      // Setup existing data
+      const existingBoard = createBoard('Existing Board')
+      saveBoard(existingBoard)
+
+      // Import new data
+      const importJson = JSON.stringify({
+        version: '1.0',
+        boards: [{ id: 'new-board-1', name: 'Imported Board', createdAt: 1, updatedAt: 1, coverImage: null, deletedAt: null }],
+        cards: [{ id: 'new-card-1', boardId: 'new-board-1', name: 'Imported Card', rank: 1, imageKey: null, thumbnailKey: null, imageCrop: null, notes: '', metadata: {}, createdAt: 1, updatedAt: 1 }],
+      })
+
+      const result = importData(importJson, { merge: true })
+      expect(result.success).toBe(true)
+      expect(result.boardsImported).toBe(1)
+      expect(result.cardsImported).toBe(1)
+
+      // Verify both exist
+      expect(getBoards()).toHaveLength(2)
+      expect(getCards()).toHaveLength(1)
+    })
+
+    it('imports valid data and replaces existing when merge is false', () => {
+      // Setup existing data
+      const existingBoard = createBoard('Existing Board')
+      saveBoard(existingBoard)
+
+      // Import new data with replace
+      const importJson = JSON.stringify({
+        version: '1.0',
+        boards: [{ id: 'new-board-1', name: 'Imported Board', createdAt: 1, updatedAt: 1, coverImage: null, deletedAt: null }],
+        cards: [],
+      })
+
+      const result = importData(importJson, { merge: false })
+      expect(result.success).toBe(true)
+
+      // Verify only imported board exists
+      expect(getBoards()).toHaveLength(1)
+      expect(getBoards()[0].name).toBe('Imported Board')
+    })
+
+    it('returns error for invalid JSON', () => {
+      const result = importData('not valid json')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Invalid JSON')
+    })
+
+    it('returns error for invalid data structure', () => {
+      const result = importData(JSON.stringify({ invalid: true }))
+      expect(result.success).toBe(false)
+      expect(result.error).toBeDefined()
     })
   })
 })
