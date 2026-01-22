@@ -11,6 +11,8 @@ export interface BottomSheetProps {
   title?: string
   /** Content to render inside the sheet */
   children: ReactNode
+  /** Optional footer content (sticky at bottom) */
+  footer?: ReactNode
 }
 
 /**
@@ -30,6 +32,7 @@ export const BottomSheet = ({
   onClose,
   title,
   children,
+  footer,
 }: BottomSheetProps) => {
   const titleId = useId()
 
@@ -60,7 +63,7 @@ export const BottomSheet = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[60]">
           {/* Backdrop */}
           <motion.div
             data-testid="backdrop"
@@ -146,9 +149,16 @@ export const BottomSheet = ({
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto max-h-[calc(90vh-80px)] p-4">
+            <div className={`overflow-y-auto p-4 ${footer ? 'max-h-[calc(90vh-160px)]' : 'max-h-[calc(90vh-80px)]'}`}>
               {children}
             </div>
+
+            {/* Footer */}
+            {footer && (
+              <div className="sticky bottom-0 p-4 pt-2 bg-[#fdfbf7] border-t border-[#e5e0d8]">
+                {footer}
+              </div>
+            )}
           </motion.div>
         </div>
       )}

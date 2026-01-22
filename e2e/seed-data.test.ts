@@ -81,15 +81,9 @@ test.describe('Seed Data Loading and Card Editing', () => {
     const newName = originalName + ' (edited)'
     await nameInput.fill(newName)
 
-    // Click save button using JavaScript to bypass nav overlay
-    await page.evaluate(() => {
-      const saveBtn = document.querySelector('button') as HTMLButtonElement
-      const buttons = Array.from(document.querySelectorAll('button'))
-      const saveButton = buttons.find(b => b.textContent?.includes('Save Changes'))
-      if (saveButton) {
-        saveButton.click()
-      }
-    })
+    // Click save button directly (z-index fix ensures modal is above TabBar)
+    const saveButton = page.locator('button:has-text("Save Changes")')
+    await saveButton.click()
     await page.waitForTimeout(1000)
 
     // Take screenshot after save
