@@ -423,7 +423,7 @@ export const SettingsPage = () => {
             className="text-[#9a958d] text-sm"
             style={{ fontFamily: "'Patrick Hand', cursive" }}
           >
-            Singles Infernal Rank v0.1.0
+            Singles Infernal Rank v{__APP_VERSION__}
           </p>
           <p
             className="text-[#9a958d] text-xs mt-1"

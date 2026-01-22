@@ -188,6 +188,40 @@ fix: correct rank badge z-index during drag
 
 **Do NOT batch multiple changes into one commit.**
 
+## Versioning - MANDATORY
+
+**Always update the version when making releases or significant changes.**
+
+### Semantic Versioning (SemVer)
+This project uses semantic versioning: `MAJOR.MINOR.PATCH`
+- **PATCH** (0.1.0 → 0.1.1): Bug fixes, minor tweaks
+- **MINOR** (0.1.0 → 0.2.0): New features, backwards-compatible
+- **MAJOR** (0.1.0 → 1.0.0): Breaking changes
+
+### How to Update Version
+Use npm scripts (version auto-injects into app via Vite):
+```bash
+npm run version:patch  # Bug fixes
+npm run version:minor  # New features
+npm run version:major  # Breaking changes
+```
+
+### When to Bump Version
+- **Before deploying**: Always bump version before `git push` to main if releasing
+- **After significant features**: Bump minor version after completing a feature
+- **After bug fixes**: Bump patch version after fixing bugs
+- **User-visible changes**: If users will notice the change, bump the version
+
+### Version Display
+The version is automatically injected from `package.json` into the app via Vite's `define` config. It displays in the Settings page footer.
+
+### Commit Format for Releases
+```bash
+npm run version:patch
+git add package.json
+git commit -m "chore: bump version to X.Y.Z"
+```
+
 ## File Structure (follow this)
 ```
 src/
