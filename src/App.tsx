@@ -139,8 +139,8 @@ export const App = () => {
       </AnimatePresence>
 
       {/* Centered container for mobile-first design on desktop */}
-      <div className="flex-1 w-full max-w-[500px] mx-auto flex flex-col">
-        <main className="flex-1 pb-20 overflow-auto">
+      <div className="flex-1 w-full max-w-[500px] mx-auto">
+        <main className="pb-20">
           {activeTab === 'boards' && renderBoardsContent()}
           {activeTab === 'settings' && <SettingsPage />}
         </main>
