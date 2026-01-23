@@ -133,15 +133,18 @@ export const App = () => {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh]">
+    <div className="min-h-screen min-h-[100dvh] flex flex-col">
       <AnimatePresence>
         {isFirstLaunch && <FirstLaunchLoader progress={loadProgress} />}
       </AnimatePresence>
 
-      <main className="pb-20">
-        {activeTab === 'boards' && renderBoardsContent()}
-        {activeTab === 'settings' && <SettingsPage />}
-      </main>
+      {/* Centered container for mobile-first design on desktop */}
+      <div className="flex-1 w-full max-w-[500px] mx-auto flex flex-col">
+        <main className="flex-1 pb-20 overflow-auto">
+          {activeTab === 'boards' && renderBoardsContent()}
+          {activeTab === 'settings' && <SettingsPage />}
+        </main>
+      </div>
 
       <TabBar
         tabs={tabs}

@@ -29,7 +29,6 @@ export const TabBar = ({ tabs, activeTab, onTabChange }: TabBarProps) => {
         bg-[#fdfbf7]
         border-t-2 border-[#2d2d2d]
         font-['Patrick_Hand']
-        flex justify-around items-center
         pt-2
         pb-[env(safe-area-inset-bottom)]
         z-50
@@ -37,31 +36,34 @@ export const TabBar = ({ tabs, activeTab, onTabChange }: TabBarProps) => {
       role="navigation"
       aria-label="Main navigation"
     >
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeTab
+      {/* Inner container centered with max-width to match content */}
+      <div className="max-w-[500px] mx-auto flex justify-around items-center">
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTab
 
-        return (
-          <button
-            key={tab.id}
-            onClick={() => {
-              if (!isActive) {
-                onTabChange(tab.id)
-              }
-            }}
-            className={`
-              flex flex-col items-center justify-center
-              px-4 py-2
-              min-w-[80px]
-              transition-colors duration-100
-              ${isActive ? 'text-[#ff4d4d]' : 'text-[#2d2d2d]/60 hover:text-[#2d2d2d]'}
-            `}
-            aria-current={isActive ? 'page' : undefined}
-          >
-            <span className="text-2xl mb-1">{tab.icon}</span>
-            <span className="text-sm">{tab.label}</span>
-          </button>
-        )
-      })}
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                if (!isActive) {
+                  onTabChange(tab.id)
+                }
+              }}
+              className={`
+                flex flex-col items-center justify-center
+                px-4 py-2
+                min-w-[80px]
+                transition-colors duration-100
+                ${isActive ? 'text-[#ff4d4d]' : 'text-[#2d2d2d]/60 hover:text-[#2d2d2d]'}
+              `}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <span className="text-2xl mb-1">{tab.icon}</span>
+              <span className="text-sm">{tab.label}</span>
+            </button>
+          )
+        })}
+      </div>
     </nav>
   )
 }
