@@ -82,6 +82,7 @@ export const App = () => {
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
   const [isFirstLaunch, setIsFirstLaunch] = useState(false)
   const [loadProgress, setLoadProgress] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Check for first launch and auto-load sample data
   useEffect(() => {
@@ -99,6 +100,8 @@ export const App = () => {
         }).then(() => {
           localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
           setIsFirstLaunch(false)
+          // Force BoardsPage to remount and re-read data
+          setRefreshKey(k => k + 1)
         }).catch(() => {
           // If loading fails, still mark as initialized to avoid infinite loop
           localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
@@ -129,7 +132,7 @@ export const App = () => {
         />
       )
     }
-    return <BoardsPage onBoardSelect={handleBoardSelect} />
+    return <BoardsPage key={refreshKey} onBoardSelect={handleBoardSelect} />
   }
 
   return (
