@@ -5,7 +5,12 @@
  * who don't use social features. The SDK (~100KB) is only loaded when
  * a user first accesses social functionality.
  *
- * Setup Instructions:
+ * DEV MODE:
+ * In development (or when VITE_USE_MOCK_AUTH=true), Firebase is bypassed
+ * and a mock authentication system is used instead. This allows testing
+ * the UI flows without setting up Firebase.
+ *
+ * PRODUCTION Setup Instructions:
  * 1. Create a Firebase project at https://console.firebase.google.com
  * 2. Enable Google Sign-In in Authentication > Sign-in method
  * 3. Create a Firestore database (start in test mode for dev)
@@ -19,6 +24,9 @@ import type { Auth } from 'firebase/auth'
 import type { Firestore } from 'firebase/firestore'
 import type { FirebaseStorage } from 'firebase/storage'
 
+// Check if we should use mock auth (dev mode or explicit flag)
+export const USE_MOCK_AUTH = import.meta.env.DEV || import.meta.env.VITE_USE_MOCK_AUTH === 'true'
+
 // Firebase config from environment variables
 // Create .env.local with these values from Firebase console:
 //
@@ -28,6 +36,8 @@ import type { FirebaseStorage } from 'firebase/storage'
 // VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 // VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
 // VITE_FIREBASE_APP_ID=your-app-id
+//
+// To force mock auth in production build: VITE_USE_MOCK_AUTH=true
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,

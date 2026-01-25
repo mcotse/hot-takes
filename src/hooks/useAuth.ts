@@ -1,8 +1,13 @@
 /**
  * useAuth Hook
  *
- * Manages Firebase authentication state with Google Sign-In.
- * Handles user profile loading/creation and username setup flow.
+ * Manages authentication state with Google Sign-In.
+ *
+ * In development mode (or when VITE_USE_MOCK_AUTH=true), uses a mock
+ * authentication system stored in localStorage. This allows testing
+ * the full auth flow without Firebase setup.
+ *
+ * In production, uses Firebase Authentication and Firestore.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -12,11 +17,20 @@ import {
   getFirebaseAuth,
   getFirebaseDb,
   isFirebaseConfigured,
+  USE_MOCK_AUTH,
 } from '../lib/firebase'
+import {
+  getMockProfile,
+  mockSignInWithGoogle,
+  mockSignOut,
+  onMockAuthStateChanged,
+  createMockProfile,
+  type MockUser,
+} from '../lib/mockAuth'
 
 export interface UseAuthReturn {
   /** Firebase User object (null if not signed in) */
-  user: User | null
+  user: User | MockUser | null
   /** User profile from Firestore (null if not loaded/exists) */
   profile: UserProfile | null
   /** Whether auth state is being determined */
@@ -33,10 +47,12 @@ export interface UseAuthReturn {
   createProfile: (username: string) => Promise<boolean>
   /** Clear error */
   clearError: () => void
+  /** Whether using mock auth (dev mode) */
+  isMockAuth: boolean
 }
 
 export const useAuth = (): UseAuthReturn => {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<User | MockUser | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,8 +65,12 @@ export const useAuth = (): UseAuthReturn => {
     setError(null)
   }, [])
 
-  // Load user profile from Firestore
+  // Load user profile from Firestore (or mock storage)
   const loadProfile = useCallback(async (uid: string): Promise<UserProfile | null> => {
+    if (USE_MOCK_AUTH) {
+      return getMockProfile(uid)
+    }
+
     try {
       const db = await getFirebaseDb()
       const { doc, getDoc } = await import('firebase/firestore')
@@ -68,6 +88,23 @@ export const useAuth = (): UseAuthReturn => {
 
   // Set up auth state listener
   useEffect(() => {
+    // Mock auth mode
+    if (USE_MOCK_AUTH) {
+      setIsLoading(true)
+      const unsubscribe = onMockAuthStateChanged(async (mockUser) => {
+        setUser(mockUser)
+        if (mockUser) {
+          const userProfile = await loadProfile(mockUser.uid)
+          setProfile(userProfile)
+        } else {
+          setProfile(null)
+        }
+        setIsLoading(false)
+      })
+      return unsubscribe
+    }
+
+    // Firebase auth mode
     if (!isFirebaseConfigured()) {
       return
     }
@@ -109,15 +146,32 @@ export const useAuth = (): UseAuthReturn => {
     }
   }, [loadProfile])
 
-  // Sign in with Google
+  // Sign in with Google (or mock)
   const signIn = useCallback(async (): Promise<void> => {
-    if (!isFirebaseConfigured()) {
-      setError('Firebase is not configured')
+    setIsLoading(true)
+    setError(null)
+
+    // Mock auth mode
+    if (USE_MOCK_AUTH) {
+      try {
+        const mockUser = await mockSignInWithGoogle()
+        const userProfile = await loadProfile(mockUser.uid)
+        setProfile(userProfile)
+      } catch (err) {
+        console.error('Mock sign in error:', err)
+        setError('Failed to sign in')
+      } finally {
+        setIsLoading(false)
+      }
       return
     }
 
-    setIsLoading(true)
-    setError(null)
+    // Firebase auth mode
+    if (!isFirebaseConfigured()) {
+      setError('Firebase is not configured')
+      setIsLoading(false)
+      return
+    }
 
     try {
       const auth = await getFirebaseAuth()
@@ -153,6 +207,22 @@ export const useAuth = (): UseAuthReturn => {
     setIsLoading(true)
     setError(null)
 
+    // Mock auth mode
+    if (USE_MOCK_AUTH) {
+      try {
+        await mockSignOut()
+        setUser(null)
+        setProfile(null)
+      } catch (err) {
+        console.error('Mock sign out error:', err)
+        setError('Failed to sign out')
+      } finally {
+        setIsLoading(false)
+      }
+      return
+    }
+
+    // Firebase auth mode
     try {
       const auth = await getFirebaseAuth()
       const { signOut: firebaseSignOut } = await import('firebase/auth')
@@ -173,7 +243,7 @@ export const useAuth = (): UseAuthReturn => {
   }, [user])
 
   // Create profile with username
-  const createProfile = useCallback(
+  const createProfileFn = useCallback(
     async (username: string): Promise<boolean> => {
       if (!user) {
         setError('Must be signed in to create profile')
@@ -183,6 +253,44 @@ export const useAuth = (): UseAuthReturn => {
       setIsLoading(true)
       setError(null)
 
+      // Mock auth mode
+      if (USE_MOCK_AUTH) {
+        try {
+          const { validateUsername } = await import('../lib/usernameValidation')
+
+          // Validate first
+          const validation = validateUsername(username)
+          if (!validation.isValid) {
+            setError(validation.error || 'Invalid username')
+            return false
+          }
+
+          const result = await createMockProfile(
+            user.uid,
+            username,
+            ('displayName' in user && user.displayName) ? user.displayName : username,
+            ('photoURL' in user && user.photoURL) ? user.photoURL : ''
+          )
+
+          if (!result.success) {
+            setError(result.error || 'Failed to create profile')
+            return false
+          }
+
+          // Reload profile
+          const loadedProfile = await loadProfile(user.uid)
+          setProfile(loadedProfile)
+          return true
+        } catch (err) {
+          console.error('Error creating mock profile:', err)
+          setError('Failed to create profile')
+          return false
+        } finally {
+          setIsLoading(false)
+        }
+      }
+
+      // Firebase auth mode
       try {
         const { reserveUsername } = await import('../lib/usernameValidation')
         const { getFirebaseDb } = await import('../lib/firebase')
@@ -197,14 +305,15 @@ export const useAuth = (): UseAuthReturn => {
 
         // Create the user profile
         const db = await getFirebaseDb()
+        const firebaseUser = user as User
         const newProfile: Omit<UserProfile, 'createdAt' | 'lastActive'> & {
           createdAt: ReturnType<typeof serverTimestamp>
           lastActive: ReturnType<typeof serverTimestamp>
         } = {
           uid: user.uid,
           username,
-          displayName: user.displayName || username,
-          avatarUrl: user.photoURL || '',
+          displayName: firebaseUser.displayName || username,
+          avatarUrl: firebaseUser.photoURL || '',
           isSearchable: true,
           blockedUsers: [],
           createdAt: serverTimestamp(),
@@ -241,7 +350,8 @@ export const useAuth = (): UseAuthReturn => {
     needsUsername,
     signIn,
     signOut,
-    createProfile,
+    createProfile: createProfileFn,
     clearError,
+    isMockAuth: USE_MOCK_AUTH,
   }
 }

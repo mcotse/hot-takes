@@ -7,6 +7,16 @@ vi.mock('../lib/firebase', () => ({
   getFirebaseAuth: vi.fn(),
   getFirebaseDb: vi.fn(),
   isFirebaseConfigured: vi.fn(() => false),
+  USE_MOCK_AUTH: false, // Test Firebase mode
+}))
+
+// Mock the mockAuth module
+vi.mock('../lib/mockAuth', () => ({
+  getMockProfile: vi.fn(),
+  mockSignInWithGoogle: vi.fn(),
+  mockSignOut: vi.fn(),
+  onMockAuthStateChanged: vi.fn(() => () => {}),
+  createMockProfile: vi.fn(),
 }))
 
 describe('useAuth', () => {

@@ -18,6 +18,7 @@ vi.mock('../hooks/useAuth', () => ({
     signOut: vi.fn(),
     createProfile: mockCreateProfile,
     clearError: vi.fn(),
+    isMockAuth: true,
   })),
 }))
 
@@ -69,6 +70,7 @@ describe('FriendsPage', () => {
         signOut: vi.fn(),
         createProfile: mockCreateProfile,
         clearError: vi.fn(),
+        isMockAuth: true,
       })
 
       render(<FriendsPage />)
@@ -90,6 +92,7 @@ describe('FriendsPage', () => {
         signOut: vi.fn(),
         createProfile: mockCreateProfile,
         clearError: vi.fn(),
+        isMockAuth: true,
       })
 
       render(<FriendsPage />)
@@ -112,6 +115,7 @@ describe('FriendsPage', () => {
         signOut: vi.fn(),
         createProfile: mockCreateProfile,
         clearError: vi.fn(),
+        isMockAuth: true,
       })
 
       render(<FriendsPage />)
@@ -142,6 +146,7 @@ describe('FriendsPage', () => {
         signOut: vi.fn(),
         createProfile: mockCreateProfile,
         clearError: vi.fn(),
+        isMockAuth: true,
       })
 
       render(<FriendsPage />)

@@ -24,6 +24,7 @@ export const FriendsPage = () => {
     needsUsername,
     signIn,
     createProfile,
+    isMockAuth,
   } = useAuth()
 
   const [isCreatingProfile, setIsCreatingProfile] = useState(false)
@@ -128,6 +129,21 @@ export const FriendsPage = () => {
           >
             Your boards stay private until you choose to share them
           </p>
+
+          {/* Dev mode indicator */}
+          {isMockAuth && (
+            <div
+              className="mt-4 p-2 bg-[#fff9c4] border-2 border-dashed border-[#2d2d2d]/30"
+              style={{ borderRadius: wobbly.sm }}
+            >
+              <p
+                className="text-xs text-[#2d2d2d]/70 text-center"
+                style={{ fontFamily: "'Patrick Hand', cursive" }}
+              >
+                🧪 Dev Mode: Using mock auth (no Firebase needed)
+              </p>
+            </div>
+          )}
         </motion.div>
       </div>
     )
