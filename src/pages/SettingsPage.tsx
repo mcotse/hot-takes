@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button'
 import { wobbly } from '../styles/wobbly'
 import { springConfig } from '../styles/tokens'
 import { importData, exportData, clearAllData } from '../lib/storage'
-import { loadSinglesInfernoS5 } from '../data/singlesInfernoS5'
+import { loadSinglesInfernoS5, loadSinglesInfernoS5Snapshots } from '../data/singlesInfernoS5'
 import { clearAllImages } from '../lib/db'
 
 type FeedbackType = 'success' | 'error' | 'warning' | null
@@ -237,6 +237,34 @@ export const SettingsPage = () => {
     }
   }
 
+  // Load Singles Inferno S5 snapshot history
+  const handleLoadSnapshotHistory = () => {
+    setIsLoading(true)
+    setLoadProgress('Creating snapshots...')
+
+    try {
+      const result = loadSinglesInfernoS5Snapshots((current, total, name) => {
+        setLoadProgress(`${name} (${current}/${total})`)
+      })
+
+      if (result.success && result.snapshotsCreated > 0) {
+        showFeedback(
+          'success',
+          `Created ${result.snapshotsCreated} episode snapshots with ranking history!`
+        )
+      } else if (result.errors.includes('Snapshots already exist for Singles Inferno S5 boards')) {
+        showFeedback('warning', 'Snapshot history already exists!')
+      } else if (result.errors.length > 0) {
+        showFeedback('error', result.errors.join(', '))
+      }
+    } catch (error) {
+      showFeedback('error', 'Something went wrong creating snapshot history')
+    } finally {
+      setIsLoading(false)
+      setLoadProgress('')
+    }
+  }
+
   // Handle file import
   const handleImportClick = () => {
     fileInputRef.current?.click()
@@ -352,14 +380,35 @@ export const SettingsPage = () => {
             >
               2 boards: 6 women + 7 men from Netflix's hit dating show
             </p>
-            <Button
-              onClick={handleLoadSeedData}
-              variant="primary"
-              size="sm"
-              disabled={isLoading}
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={handleLoadSeedData}
+                variant="primary"
+                size="sm"
+                disabled={isLoading}
+              >
+                {isLoading ? loadProgress || 'Loading...' : 'Load Cast & Photos'}
+              </Button>
+              <Button
+                onClick={handleLoadSnapshotHistory}
+                variant="secondary"
+                size="sm"
+                disabled={isLoading}
+              >
+                {isLoading ? loadProgress || 'Loading...' : 'Load Ranking History (5 Episodes)'}
+              </Button>
+            </div>
+          </div>
+          <div
+            className="p-3 bg-[#f5f5f5] border-2 border-dashed border-[#e5e0d8]"
+            style={{ borderRadius: wobbly.sm }}
+          >
+            <p
+              className="text-[#9a958d] text-xs"
+              style={{ fontFamily: "'Patrick Hand', cursive" }}
             >
-              {isLoading ? loadProgress || 'Loading...' : 'Load Cast & Photos'}
-            </Button>
+              💡 Tip: Load cast first, then load ranking history to see week-over-week changes in the History tab.
+            </p>
           </div>
         </SettingsSection>
 

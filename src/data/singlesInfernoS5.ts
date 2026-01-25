@@ -5,8 +5,8 @@
  * Use this as seed data to quickly populate a ranking board.
  */
 
-import type { Board, Card } from '../lib/types'
-import { saveBoard, saveCard, getBoard } from '../lib/storage'
+import type { Board, Card, Snapshot, RankingEntry } from '../lib/types'
+import { saveBoard, saveCard, getBoard, getCardsByBoard, saveSnapshot, getSnapshotsByBoard } from '../lib/storage'
 import { saveImage } from '../lib/db'
 import { processImage } from '../lib/imageUtils'
 
@@ -411,4 +411,183 @@ export const getSinglesInfernoS5Json = (): string => {
     ],
     exportedAt: now,
   }, null, 2)
+}
+
+/**
+ * Snapshot load result
+ */
+export interface LoadSnapshotsResult {
+  success: boolean
+  snapshotsCreated: number
+  errors: string[]
+}
+
+/**
+ * Episode-by-episode ranking configurations
+ * Each array represents the card IDs in rank order for that episode
+ */
+const WOMEN_RANKINGS_BY_EPISODE: string[][] = [
+  // Episode 1: Initial impressions
+  ['si5-park-hee-sun', 'si5-kim-go-eun', 'si5-ham-ye-jin', 'si5-kim-min-ji', 'si5-lee-joo-young', 'si5-choi-mina-sue'],
+  // Episode 2: After first Paradise dates
+  ['si5-kim-go-eun', 'si5-park-hee-sun', 'si5-choi-mina-sue', 'si5-ham-ye-jin', 'si5-kim-min-ji', 'si5-lee-joo-young'],
+  // Episode 3: Drama and unexpected connections
+  ['si5-ham-ye-jin', 'si5-kim-go-eun', 'si5-park-hee-sun', 'si5-lee-joo-young', 'si5-choi-mina-sue', 'si5-kim-min-ji'],
+  // Episode 4: Mid-season shake-up
+  ['si5-kim-go-eun', 'si5-ham-ye-jin', 'si5-lee-joo-young', 'si5-park-hee-sun', 'si5-kim-min-ji', 'si5-choi-mina-sue'],
+  // Episode 5: Final rankings
+  ['si5-ham-ye-jin', 'si5-kim-go-eun', 'si5-park-hee-sun', 'si5-lee-joo-young', 'si5-kim-min-ji', 'si5-choi-mina-sue'],
+]
+
+const MEN_RANKINGS_BY_EPISODE: string[][] = [
+  // Episode 1: Initial impressions
+  ['si5-youn-hyun-jae', 'si5-song-seung-il', 'si5-shin-hyeon-woo', 'si5-kim-jae-jin', 'si5-woo-sung-min', 'si5-lim-su-been', 'si5-lee-sung-hun'],
+  // Episode 2: After first Paradise dates
+  ['si5-song-seung-il', 'si5-youn-hyun-jae', 'si5-kim-jae-jin', 'si5-shin-hyeon-woo', 'si5-lee-sung-hun', 'si5-woo-sung-min', 'si5-lim-su-been'],
+  // Episode 3: Drama and unexpected connections
+  ['si5-kim-jae-jin', 'si5-song-seung-il', 'si5-youn-hyun-jae', 'si5-lee-sung-hun', 'si5-shin-hyeon-woo', 'si5-lim-su-been', 'si5-woo-sung-min'],
+  // Episode 4: Mid-season shake-up
+  ['si5-song-seung-il', 'si5-kim-jae-jin', 'si5-lee-sung-hun', 'si5-youn-hyun-jae', 'si5-shin-hyeon-woo', 'si5-woo-sung-min', 'si5-lim-su-been'],
+  // Episode 5: Final rankings
+  ['si5-kim-jae-jin', 'si5-song-seung-il', 'si5-youn-hyun-jae', 'si5-lee-sung-hun', 'si5-shin-hyeon-woo', 'si5-lim-su-been', 'si5-woo-sung-min'],
+]
+
+const EPISODE_NOTES: string[] = [
+  'First impressions from the arrival episode',
+  'Rankings after the first Paradise dates and pool party',
+  'Big shake-up after the love triangle drama!',
+  'Mid-season adjustments as relationships develop',
+  'Final episode rankings before the finale',
+]
+
+/**
+ * Load snapshot history for Singles Inferno S5 boards
+ *
+ * Creates 5 episodes of ranking history showing week-over-week changes
+ * Requires the boards and cards to already exist (run loadSinglesInfernoS5 first)
+ */
+export const loadSinglesInfernoS5Snapshots = (
+  onProgress?: LoadProgressCallback
+): LoadSnapshotsResult => {
+  const errors: string[] = []
+  let snapshotsCreated = 0
+
+  // Check if boards exist
+  const womenBoard = getBoard(WOMEN_BOARD_ID)
+  const menBoard = getBoard(MEN_BOARD_ID)
+
+  if (!womenBoard || !menBoard) {
+    return {
+      success: false,
+      snapshotsCreated: 0,
+      errors: ['Singles Inferno S5 boards not found. Load the cast data first.'],
+    }
+  }
+
+  // Check if snapshots already exist
+  const existingWomenSnapshots = getSnapshotsByBoard(WOMEN_BOARD_ID)
+  const existingMenSnapshots = getSnapshotsByBoard(MEN_BOARD_ID)
+
+  if (existingWomenSnapshots.length > 0 || existingMenSnapshots.length > 0) {
+    return {
+      success: true,
+      snapshotsCreated: 0,
+      errors: ['Snapshots already exist for Singles Inferno S5 boards'],
+    }
+  }
+
+  // Get current cards to build ranking entries
+  const womenCards = getCardsByBoard(WOMEN_BOARD_ID)
+  const menCards = getCardsByBoard(MEN_BOARD_ID)
+
+  if (womenCards.length === 0 || menCards.length === 0) {
+    return {
+      success: false,
+      snapshotsCreated: 0,
+      errors: ['No cards found for Singles Inferno S5 boards. Load the cast data first.'],
+    }
+  }
+
+  // Create card lookup maps
+  const womenCardMap = new Map(womenCards.map(c => [c.id, c]))
+  const menCardMap = new Map(menCards.map(c => [c.id, c]))
+
+  const totalEpisodes = WOMEN_RANKINGS_BY_EPISODE.length + MEN_RANKINGS_BY_EPISODE.length
+  let currentStep = 0
+
+  // Create snapshots for women's board
+  for (let ep = 0; ep < WOMEN_RANKINGS_BY_EPISODE.length; ep++) {
+    onProgress?.(++currentStep, totalEpisodes, `Creating Women Ep ${ep + 1}...`)
+
+    const rankings: RankingEntry[] = WOMEN_RANKINGS_BY_EPISODE[ep]
+      .map((cardId, index) => {
+        const card = womenCardMap.get(cardId)
+        if (!card) return null
+        return {
+          cardId: card.id,
+          cardName: card.name,
+          rank: index + 1,
+          thumbnailKey: card.thumbnailKey,
+        }
+      })
+      .filter((entry): entry is RankingEntry => entry !== null)
+
+    // Create snapshot with timestamps spread over "weeks"
+    const baseTime = Date.now() - (WOMEN_RANKINGS_BY_EPISODE.length - ep) * 7 * 24 * 60 * 60 * 1000
+
+    const snapshot: Snapshot = {
+      id: `snapshot-women-ep${ep + 1}`,
+      boardId: WOMEN_BOARD_ID,
+      episodeNumber: ep + 1,
+      label: `Episode ${ep + 1}`,
+      notes: EPISODE_NOTES[ep] || '',
+      rankings,
+      createdAt: baseTime,
+    }
+
+    saveSnapshot(snapshot)
+    snapshotsCreated++
+  }
+
+  // Create snapshots for men's board
+  for (let ep = 0; ep < MEN_RANKINGS_BY_EPISODE.length; ep++) {
+    onProgress?.(++currentStep, totalEpisodes, `Creating Men Ep ${ep + 1}...`)
+
+    const rankings: RankingEntry[] = MEN_RANKINGS_BY_EPISODE[ep]
+      .map((cardId, index) => {
+        const card = menCardMap.get(cardId)
+        if (!card) return null
+        return {
+          cardId: card.id,
+          cardName: card.name,
+          rank: index + 1,
+          thumbnailKey: card.thumbnailKey,
+        }
+      })
+      .filter((entry): entry is RankingEntry => entry !== null)
+
+    // Create snapshot with timestamps spread over "weeks"
+    const baseTime = Date.now() - (MEN_RANKINGS_BY_EPISODE.length - ep) * 7 * 24 * 60 * 60 * 1000
+
+    const snapshot: Snapshot = {
+      id: `snapshot-men-ep${ep + 1}`,
+      boardId: MEN_BOARD_ID,
+      episodeNumber: ep + 1,
+      label: `Episode ${ep + 1}`,
+      notes: EPISODE_NOTES[ep] || '',
+      rankings,
+      createdAt: baseTime,
+    }
+
+    saveSnapshot(snapshot)
+    snapshotsCreated++
+  }
+
+  onProgress?.(totalEpisodes, totalEpisodes, 'Complete!')
+
+  return {
+    success: true,
+    snapshotsCreated,
+    errors,
+  }
 }
