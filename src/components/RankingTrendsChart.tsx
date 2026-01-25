@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import type { Snapshot } from '../lib/types'
 import { wobbly } from '../styles/wobbly'
 import { springConfig } from '../styles/tokens'
+import { NicknameToggle } from './ui/NicknameToggle'
+import { getSettings, saveSettings } from '../lib/storage'
 
 export interface RankingTrendsChartProps {
   snapshots: Snapshot[]
@@ -13,6 +15,7 @@ export interface RankingTrendsChartProps {
 interface TrajectoryData {
   cardId: string
   cardName: string
+  cardNickname: string | null
   thumbnailKey: string | null
   points: { episode: number; rank: number | null }[]
   color: string
@@ -73,6 +76,16 @@ const generateWobblyPath = (
 export const RankingTrendsChart = ({ snapshots, thumbnailUrls = {} }: RankingTrendsChartProps) => {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
+  const [useNickname, setUseNickname] = useState(() => getSettings().nicknameModeChart)
+
+  // Toggle nickname mode and persist to settings
+  const handleToggleNickname = useCallback(() => {
+    setUseNickname(prev => {
+      const newValue = !prev
+      saveSettings({ nicknameModeChart: newValue })
+      return newValue
+    })
+  }, [])
 
   // Process snapshots into trajectory data
   const { trajectories, maxRank, episodes } = useMemo(() => {
@@ -81,13 +94,14 @@ export const RankingTrendsChart = ({ snapshots, thumbnailUrls = {} }: RankingTre
     }
 
     // Get all unique cards across all snapshots
-    const cardMap = new Map<string, { cardId: string; cardName: string; thumbnailKey: string | null }>()
+    const cardMap = new Map<string, { cardId: string; cardName: string; cardNickname: string | null; thumbnailKey: string | null }>()
     snapshots.forEach((snapshot) => {
       snapshot.rankings.forEach((entry) => {
         if (!cardMap.has(entry.cardId)) {
           cardMap.set(entry.cardId, {
             cardId: entry.cardId,
             cardName: entry.cardName,
+            cardNickname: entry.cardNickname ?? null,
             thumbnailKey: entry.thumbnailKey,
           })
         }
@@ -106,7 +120,7 @@ export const RankingTrendsChart = ({ snapshots, thumbnailUrls = {} }: RankingTre
     const trajectories: TrajectoryData[] = []
     let colorIndex = 0
 
-    cardMap.forEach(({ cardId, cardName, thumbnailKey }) => {
+    cardMap.forEach(({ cardId, cardName, cardNickname, thumbnailKey }) => {
       const points = snapshots.map((snapshot) => {
         const entry = snapshot.rankings.find((r) => r.cardId === cardId)
         return {
@@ -118,6 +132,7 @@ export const RankingTrendsChart = ({ snapshots, thumbnailUrls = {} }: RankingTre
       trajectories.push({
         cardId,
         cardName,
+        cardNickname,
         thumbnailKey,
         points,
         color: LINE_COLORS[colorIndex % LINE_COLORS.length],
@@ -431,18 +446,26 @@ export const RankingTrendsChart = ({ snapshots, thumbnailUrls = {} }: RankingTre
         className="bg-white border-[3px] border-[#2d2d2d] shadow-[4px_4px_0px_0px_#2d2d2d] p-3"
         style={{ borderRadius: wobbly.md }}
       >
-        <h3
-          className="text-sm text-[#9a958d] mb-2"
-          style={{ fontFamily: "'Patrick Hand', cursive" }}
-        >
-          Tap to highlight:
-        </h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3
+            className="text-sm text-[#9a958d]"
+            style={{ fontFamily: "'Patrick Hand', cursive" }}
+          >
+            Tap to highlight:
+          </h3>
+          {/* Nickname Toggle - only show if some trajectories have nicknames */}
+          {trajectories.some(t => t.cardNickname && t.cardNickname.trim() !== '') && (
+            <NicknameToggle enabled={useNickname} onToggle={handleToggleNickname} />
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           {trajectories.map((traj) => {
             const isSelected = selectedCards.has(traj.cardId)
             const isHovered = hoveredCard === traj.cardId
-
             const thumbnailUrl = traj.thumbnailKey ? thumbnailUrls[traj.thumbnailKey] : null
+            const displayName = useNickname && traj.cardNickname && traj.cardNickname.trim() !== ''
+              ? traj.cardNickname
+              : traj.cardName
 
             return (
               <motion.button
@@ -472,7 +495,7 @@ export const RankingTrendsChart = ({ snapshots, thumbnailUrls = {} }: RankingTre
                 {thumbnailUrl ? (
                   <img
                     src={thumbnailUrl}
-                    alt={traj.cardName}
+                    alt={displayName}
                     className="w-6 h-6 rounded-full border border-[#2d2d2d] object-cover"
                   />
                 ) : (
@@ -481,7 +504,7 @@ export const RankingTrendsChart = ({ snapshots, thumbnailUrls = {} }: RankingTre
                     style={{ backgroundColor: traj.color }}
                   />
                 )}
-                <span className="truncate max-w-[80px]">{traj.cardName}</span>
+                <span className="truncate max-w-[80px]">{displayName}</span>
               </motion.button>
             )
           })}
