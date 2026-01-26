@@ -5,13 +5,14 @@ import { useImageStorage } from '../hooks/useImageStorage'
 import { useSnapshots } from '../hooks/useSnapshots'
 import { RankList } from '../components/RankList'
 import { CardDetailModal } from '../components/CardDetailModal'
+import { EditBoardSheet } from '../components/EditBoardSheet'
 import { PhotoPicker } from '../components/PhotoPicker'
 import { SaveEpisodeModal } from '../components/SaveEpisodeModal'
 import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 import { wobbly } from '../styles/wobbly'
 import { compressImage, generateThumbnail } from '../lib/imageUtils'
-import type { Card } from '../lib/types'
+import type { Card, Board } from '../lib/types'
 
 interface BoardDetailPageProps {
   /** ID of the board to display */
@@ -61,6 +62,26 @@ const SaveEpisodeButton = ({ onClick }: { onClick: () => void }) => (
     "
   >
     📸
+  </button>
+)
+
+/**
+ * Edit board button
+ */
+const EditBoardButton = ({ onClick }: { onClick: () => void }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label="Edit board"
+    className="
+      flex items-center justify-center
+      w-10 h-10
+      text-[#2d2d2d] text-xl
+      hover:text-[#2d5da1]
+      transition-colors
+    "
+  >
+    ✏️
   </button>
 )
 
@@ -137,17 +158,20 @@ export const BoardDetailPage = ({
   onCardTap,
   onAddCard,
 }: BoardDetailPageProps) => {
-  const { getBoard } = useBoards()
+  const { getBoard, updateBoard, softDeleteBoard } = useBoards()
   const { cards, reorderCards, updateCard, deleteCard, getCard, createCard } = useCards(boardId)
-  const { saveImage, getThumbnailUrl } = useImageStorage()
+  const { saveImage, getThumbnailUrl, getImageUrl } = useImageStorage()
   const { createSnapshot, nextEpisodeNumber } = useSnapshots(boardId)
   const { showToast, ToastContainer } = useToast()
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [isAddingCard, setIsAddingCard] = useState(false)
   const [showSaveEpisodeModal, setShowSaveEpisodeModal] = useState(false)
+  const [showEditBoardSheet, setShowEditBoardSheet] = useState(false)
   const [photoPickerTrigger, setPhotoPickerTrigger] = useState<(() => void) | null>(null)
   const [pendingPhotoCardId, setPendingPhotoCardId] = useState<string | null>(null)
+  const [pendingBoardCoverPhoto, setPendingBoardCoverPhoto] = useState(false)
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({})
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
 
   const board = getBoard(boardId)
   const selectedCard = selectedCardId ? getCard(selectedCardId) : null
@@ -219,6 +243,21 @@ export const BoardDetailPage = ({
 
   // Handle photo selection from picker
   const handlePhotoSelect = useCallback(async (file: File) => {
+    // Handle board cover photo
+    if (pendingBoardCoverPhoto) {
+      try {
+        const compressedBlob = await compressImage(file)
+        const imageKey = await saveImage(compressedBlob)
+        updateBoard(boardId, { coverImage: imageKey })
+        setPendingBoardCoverPhoto(false)
+      } catch (error) {
+        console.error('Failed to process board cover photo:', error)
+        setPendingBoardCoverPhoto(false)
+      }
+      return
+    }
+
+    // Handle card photo
     if (!pendingPhotoCardId) return
 
     try {
@@ -245,7 +284,24 @@ export const BoardDetailPage = ({
       console.error('Failed to process photo:', error)
       setPendingPhotoCardId(null)
     }
-  }, [pendingPhotoCardId, saveImage, updateCard])
+  }, [pendingPhotoCardId, pendingBoardCoverPhoto, boardId, saveImage, updateCard, updateBoard])
+
+  // Handle board cover photo change
+  const handleChangeBoardCoverPhoto = useCallback(() => {
+    setPendingBoardCoverPhoto(true)
+    photoPickerTrigger?.()
+  }, [photoPickerTrigger])
+
+  // Handle board save
+  const handleSaveBoard = useCallback((updates: Partial<Omit<Board, 'id' | 'createdAt'>>) => {
+    updateBoard(boardId, updates)
+  }, [boardId, updateBoard])
+
+  // Handle board delete
+  const handleDeleteBoard = useCallback(() => {
+    softDeleteBoard(boardId)
+    onBack()
+  }, [boardId, softDeleteBoard, onBack])
 
   // Load thumbnail URLs for cards with images
   useEffect(() => {
@@ -280,6 +336,33 @@ export const BoardDetailPage = ({
     }
   }, [cards, getThumbnailUrl])
 
+  // Load cover image URL when board has a cover image
+  useEffect(() => {
+    let cancelled = false
+    let loadedUrl: string | null = null
+
+    const loadCoverImage = async () => {
+      if (!board?.coverImage) {
+        setCoverImageUrl(null)
+        return
+      }
+
+      const url = await getImageUrl(board.coverImage)
+      if (!cancelled && url) {
+        loadedUrl = url
+        setCoverImageUrl(url)
+      }
+    }
+    loadCoverImage()
+
+    return () => {
+      cancelled = true
+      if (loadedUrl) {
+        URL.revokeObjectURL(loadedUrl)
+      }
+    }
+  }, [board?.coverImage, getImageUrl])
+
   return (
     <div className="min-h-full pb-20">
       {/* Header */}
@@ -294,6 +377,7 @@ export const BoardDetailPage = ({
             {board.name}
           </h1>
 
+          <EditBoardButton onClick={() => setShowEditBoardSheet(true)} />
           <SaveEpisodeButton onClick={() => setShowSaveEpisodeModal(true)} />
         </div>
       </header>
@@ -359,6 +443,17 @@ export const BoardDetailPage = ({
             showToast('Failed to save episode. Please try again.', 'error')
           }
         }}
+      />
+
+      {/* Edit Board Sheet */}
+      <EditBoardSheet
+        isOpen={showEditBoardSheet}
+        board={board}
+        coverImageUrl={coverImageUrl}
+        onClose={() => setShowEditBoardSheet(false)}
+        onSave={handleSaveBoard}
+        onDelete={handleDeleteBoard}
+        onChangePhoto={handleChangeBoardCoverPhoto}
       />
 
       {/* Toast notifications */}
