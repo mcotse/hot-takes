@@ -1,6 +1,6 @@
 {
-  "name": "HotTakes",
-  "short_name": "HotTakes",
+  "name": "Hot Takes",
+  "short_name": "Hot Takes",
   "description": "Rank anything with drag-and-drop. Hand-drawn aesthetic.",
   "start_url": "/singles_infernal_rank/",
   "display": "standalone",
