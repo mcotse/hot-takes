@@ -11,39 +11,45 @@ test.describe('Modal Responsive Width', () => {
       indexedDB.deleteDatabase('singles-infernal-rank-images')
     })
     await page.reload()
-    await page.waitForTimeout(500)
 
-    // Load seed data
+    // Wait for app to be ready
+    await page.waitForSelector('nav[aria-label="Main navigation"]')
+
+    // Load seed data - navigate to settings
     const settingsTab = page.locator('button:has-text("Settings"), [data-testid="settings-tab"]')
     await settingsTab.click()
-    await page.waitForTimeout(300)
+    await page.waitForSelector('button:has-text("Load Cast & Photos")')
 
     const loadButton = page.locator('button:has-text("Load Cast & Photos")')
     await loadButton.click()
-    await page.waitForTimeout(2000)
+
+    // Wait for seed data to load by checking for success indicator
+    await page.waitForSelector('button:has-text("Boards")', { timeout: 10000 })
 
     // Navigate to boards
     const boardsTab = page.locator('button:has-text("Boards"), [data-testid="boards-tab"]')
     await boardsTab.click()
-    await page.waitForTimeout(500)
+
+    // Wait for boards list to appear
+    await page.waitForSelector('button[aria-label*="Singles Inferno S5"]', { timeout: 5000 })
 
     // Open women's board
     const womenBoard = page.locator('button[aria-label*="Singles Inferno S5"]').filter({ hasText: '👩' })
     await womenBoard.click()
-    await page.waitForTimeout(500)
+
+    // Wait for board detail page to load
+    await page.waitForSelector('button[aria-label="Add new card"]', { timeout: 5000 })
   })
 
   test('modal should be constrained to 500px on desktop viewport', async ({ page }) => {
     // Set desktop viewport
     await page.setViewportSize({ width: 1280, height: 800 })
-    await page.waitForTimeout(300)
 
     // Click add button to open the Add Card modal
     const addButton = page.locator('button[aria-label="Add new card"]')
     await addButton.click()
-    await page.waitForTimeout(300)
 
-    // Get the bottom sheet modal
+    // Wait for modal to be visible
     const modal = page.locator('[data-testid="bottom-sheet"]')
     await expect(modal).toBeVisible()
 
@@ -51,17 +57,15 @@ test.describe('Modal Responsive Width', () => {
     const modalBox = await modal.boundingBox()
     expect(modalBox).not.toBeNull()
 
-    // Verify width is <= 500px on desktop
+    // Verify width is <= 500px on desktop (should be exactly 500px or close to it)
     expect(modalBox!.width).toBeLessThanOrEqual(500)
-    expect(modalBox!.width).toBeGreaterThan(400) // Should be close to 500px
+    expect(modalBox!.width).toBeGreaterThanOrEqual(490) // Allow small tolerance for rendering
 
-    // Verify modal is horizontally centered
+    // Verify modal is horizontally centered (3px tolerance for sub-pixel rendering)
     const viewportWidth = 1280
     const expectedCenterX = viewportWidth / 2
     const modalCenterX = modalBox!.x + modalBox!.width / 2
-
-    // Allow 10px tolerance for centering
-    expect(Math.abs(modalCenterX - expectedCenterX)).toBeLessThan(10)
+    expect(Math.abs(modalCenterX - expectedCenterX)).toBeLessThan(3)
 
     // Take screenshot for visual verification
     await page.screenshot({ path: 'e2e/screenshots/modal-desktop-width.png', fullPage: true })
@@ -70,14 +74,12 @@ test.describe('Modal Responsive Width', () => {
   test('modal should span full width on mobile viewport', async ({ page }) => {
     // Set mobile viewport (iPhone 14 Pro Max width)
     await page.setViewportSize({ width: 430, height: 932 })
-    await page.waitForTimeout(300)
 
     // Click add button to open the Add Card modal
     const addButton = page.locator('button[aria-label="Add new card"]')
     await addButton.click()
-    await page.waitForTimeout(300)
 
-    // Get the bottom sheet modal
+    // Wait for modal to be visible
     const modal = page.locator('[data-testid="bottom-sheet"]')
     await expect(modal).toBeVisible()
 
@@ -86,11 +88,13 @@ test.describe('Modal Responsive Width', () => {
     expect(modalBox).not.toBeNull()
 
     // On mobile (430px), the modal should span the full viewport width
-    // Since max-w-[500px] is larger than 430px, it should be 430px wide
-    expect(modalBox!.width).toBe(430)
+    // Allow small tolerance for sub-pixel rendering differences
+    expect(modalBox!.width).toBeGreaterThanOrEqual(428)
+    expect(modalBox!.width).toBeLessThanOrEqual(430)
 
-    // Modal should start at x=0 (left edge)
-    expect(modalBox!.x).toBe(0)
+    // Modal should start near x=0 (left edge), allow 2px tolerance
+    expect(modalBox!.x).toBeGreaterThanOrEqual(0)
+    expect(modalBox!.x).toBeLessThanOrEqual(2)
 
     // Take screenshot for visual verification
     await page.screenshot({ path: 'e2e/screenshots/modal-mobile-width.png', fullPage: true })
