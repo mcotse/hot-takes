@@ -1,7 +1,7 @@
 # Social Features Specification
 
-> **Status:** Phase 1 Complete
-> **Version:** 0.2.0
+> **Status:** Phase 3 Complete
+> **Version:** 0.3.0
 > **Last Updated:** 2026-01-25
 
 ## Overview
@@ -469,7 +469,7 @@ match /friendships/{friendshipId} {
 - [x] User profile creation with username validation
 - [x] Username uniqueness enforcement
 - [x] Reserved usernames protection (admin, root, support, etc.)
-- [ ] Basic data sync (boards to cloud) - **NEXT**
+- [x] Basic data sync (boards to cloud)
 
 #### Phase 1 Implementation Notes
 - **Files added:**
@@ -477,25 +477,58 @@ match /friendships/{friendshipId} {
   - `src/lib/mockAuth.ts` - Mock auth for dev mode
   - `src/lib/socialTypes.ts` - TypeScript types for social features
   - `src/lib/usernameValidation.ts` - Username rules and validation
+  - `src/lib/firestoreBoards.ts` - CloudBoard types and Firestore CRUD operations
   - `src/hooks/useAuth.ts` - Authentication hook
+  - `src/hooks/useBoardSync.ts` - Board sync state management
   - `src/components/modals/UsernameSetupModal.tsx` - First-time username entry
-  - `src/pages/FriendsPage.tsx` - Friends tab with sign-in flow
+  - `src/components/modals/SyncMigrationModal.tsx` - First-time sync prompt
+  - `src/pages/FriendsPage.tsx` - Friends tab with sign-in and sync flow
   - `src/pages/SettingsPage.tsx` - Updated with Account section
 - **Dev mode:** Set `VITE_USE_MOCK_AUTH=true` (default in dev) to bypass Firebase
 - **Username rules:** 3-20 chars, alphanumeric + underscore, no consecutive underscores, reserved names blocked
+- **Sync behavior:** On first sign-in, users are prompted to sync local boards to cloud. Local always wins conflicts.
 
-### Phase 2: Friends System
-- [ ] Friend requests (send/accept/decline)
-- [ ] Username search
-- [ ] Invite links
-- [ ] Friends list UI
-- [ ] Privacy settings (searchable toggle)
+### Phase 2: Friends System ✅ COMPLETE (Core)
+- [x] Friend requests (send/accept/decline)
+- [x] Username search
+- [x] Friends list UI
+- [ ] Invite links (deferred)
+- [ ] Privacy settings (searchable toggle) (deferred)
 
-### Phase 3: Board Sharing
-- [ ] Per-board visibility settings
-- [ ] Public link generation/revocation
-- [ ] View friend's boards
-- [ ] Share settings UI
+#### Phase 2 Implementation Notes
+- **Files added:**
+  - `src/lib/firestoreFriendships.ts` - Friendship CRUD operations
+  - `src/lib/firestoreUsers.ts` - User profile queries
+  - `src/hooks/useFriends.ts` - Friends state management
+  - `src/components/FriendCard.tsx` - Friend display component
+  - `src/components/FriendRequestCard.tsx` - Request accept/decline UI
+  - `src/components/UserSearchSection.tsx` - Username search with debounce
+- **Features:**
+  - Send/accept/decline friend requests
+  - Search users by username (prefix match)
+  - View friends list with pending request badge
+  - Block users (removes friendship, prevents future requests)
+
+### Phase 3: Board Sharing ✅ COMPLETE
+- [x] Per-board visibility settings
+- [x] Public link generation/revocation
+- [x] View friend's boards
+- [x] Share settings UI
+
+#### Phase 3 Implementation Notes
+- **Files added:**
+  - `src/lib/firestoreBoards.ts` - Added updateBoardSharing, revokePublicLink, canUserViewBoard, filterVisibleBoards, getSharedBoardCountByFriend
+  - `src/hooks/useFriendBoards.ts` - Fetch friend's shared boards with counts
+  - `src/components/BoardSettingsSheet.tsx` - Full sharing configuration UI
+  - `src/components/ShareModal.tsx` - Quick share modal (private/friends/public)
+  - `src/pages/FriendProfilePage.tsx` - View friend's profile and shared boards
+- **Features:**
+  - Per-board visibility: private, friends, specific friends, public
+  - Public link generation with unique IDs
+  - Link revocation (generates new ID)
+  - Friend boards viewing with shared board counts on FriendCard
+  - BoardSettingsSheet for detailed sharing config
+  - ShareModal for quick one-tap sharing
 
 ### Phase 4: Templates & Comparison
 - [ ] Template data model

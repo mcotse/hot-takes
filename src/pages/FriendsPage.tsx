@@ -4,16 +4,28 @@
  * Social features hub showing:
  * - Sign-in prompt when not authenticated
  * - Username setup modal for new users
+ * - Sync migration modal for first-time sync
  * - Friends list when signed in (placeholder for now)
  */
 
-import { useState, useCallback } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useCallback, useEffect, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../hooks/useAuth'
+import { useBoards } from '../hooks/useBoards'
+import { useBoardSync } from '../hooks/useBoardSync'
+import { useFriends } from '../hooks/useFriends'
+import { useFriendBoards } from '../hooks/useFriendBoards'
 import { UsernameSetupModal } from '../components/modals/UsernameSetupModal'
+import { SyncMigrationModal } from '../components/modals/SyncMigrationModal'
+import { FriendCard } from '../components/FriendCard'
+import { FriendRequestCard } from '../components/FriendRequestCard'
+import { UserSearchSection } from '../components/UserSearchSection'
 import { Button } from '../components/ui/Button'
 import { wobbly } from '../styles/wobbly'
 import { springConfig } from '../styles/tokens'
+
+// Key for tracking if user has seen/dismissed sync modal
+const SYNC_DISMISSED_KEY = 'singles-infernal-rank:sync-dismissed'
 
 export const FriendsPage = () => {
   const {
@@ -27,7 +39,78 @@ export const FriendsPage = () => {
     isMockAuth,
   } = useAuth()
 
+  const { boards, refresh: refreshBoards } = useBoards()
+  const {
+    status: syncStatus,
+    error: syncError,
+    lastSyncedAt,
+    isSyncing,
+    syncAll,
+    clearError: clearSyncError,
+  } = useBoardSync({ userId: user?.uid ?? null })
+
+  // Friends data
+  const {
+    friends,
+    incomingRequests,
+    outgoingRequests,
+    isLoading: isFriendsLoading,
+    pendingCount,
+    sendRequest,
+    acceptRequest,
+    declineRequest,
+    removeFriend,
+    refresh: refreshFriends,
+  } = useFriends({ userId: user?.uid ?? null })
+
+  // Get friend IDs for board fetching
+  const friendIds = useMemo(
+    () => friends.map((f) => f.profile.uid),
+    [friends]
+  )
+
+  // Friend boards data
+  const { sharedBoardCounts } = useFriendBoards({
+    userId: user?.uid ?? null,
+    friendIds,
+  })
+
   const [isCreatingProfile, setIsCreatingProfile] = useState(false)
+  const [showSyncModal, setShowSyncModal] = useState(false)
+  const [syncDismissed, setSyncDismissed] = useState(() => {
+    return localStorage.getItem(SYNC_DISMISSED_KEY) === 'true'
+  })
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null)
+
+  // Check if we should show sync modal
+  // Show when: user is signed in, has profile, has local boards, never synced, and hasn't dismissed
+  const shouldShowSyncModal =
+    user !== null &&
+    profile !== null &&
+    !needsUsername &&
+    boards.length > 0 &&
+    lastSyncedAt === null &&
+    !syncDismissed &&
+    syncStatus !== 'synced'
+
+  // Update showSyncModal when conditions change
+  useEffect(() => {
+    setShowSyncModal(shouldShowSyncModal)
+  }, [shouldShowSyncModal])
+
+  // Handle sync action
+  const handleSync = useCallback(async () => {
+    await syncAll(boards)
+    setShowSyncModal(false)
+    refreshBoards()
+  }, [syncAll, boards, refreshBoards])
+
+  // Handle skip sync
+  const handleSkipSync = useCallback(() => {
+    localStorage.setItem(SYNC_DISMISSED_KEY, 'true')
+    setSyncDismissed(true)
+    setShowSyncModal(false)
+  }, [])
 
   // Handle username submission
   const handleUsernameSubmit = useCallback(
@@ -38,6 +121,32 @@ export const FriendsPage = () => {
     },
     [createProfile]
   )
+
+  // Handle accept friend request
+  const handleAcceptRequest = useCallback(
+    async (friendshipId: string) => {
+      setProcessingRequestId(friendshipId)
+      await acceptRequest(friendshipId)
+      setProcessingRequestId(null)
+    },
+    [acceptRequest]
+  )
+
+  // Handle decline friend request
+  const handleDeclineRequest = useCallback(
+    async (friendshipId: string) => {
+      setProcessingRequestId(friendshipId)
+      await declineRequest(friendshipId)
+      setProcessingRequestId(null)
+    },
+    [declineRequest]
+  )
+
+  // Handle view friend profile (placeholder for now)
+  const handleViewFriend = useCallback((uid: string) => {
+    // TODO: Navigate to friend profile page
+    console.log('View friend:', uid)
+  }, [])
 
   // Render sign-in prompt for unauthenticated users
   if (!user) {
@@ -162,73 +271,204 @@ export const FriendsPage = () => {
         allowDismiss={false}
       />
 
-      {/* Friends header */}
-      <div className="mb-6">
-        <h1
-          className="text-3xl text-[#2d2d2d]"
-          style={{
-            fontFamily: "'Kalam', cursive",
-            fontWeight: 700,
-          }}
+      {/* Sync migration modal - shown after sign-in when user has local boards */}
+      <SyncMigrationModal
+        isOpen={showSyncModal && !needsUsername}
+        boards={boards}
+        onSync={handleSync}
+        onSkip={handleSkipSync}
+        isSyncing={isSyncing}
+        error={syncError}
+      />
+
+      {/* Friends header with pending badge */}
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1
+            className="text-3xl text-[#2d2d2d]"
+            style={{
+              fontFamily: "'Kalam', cursive",
+              fontWeight: 700,
+            }}
+          >
+            Friends
+            {pendingCount > 0 && (
+              <span
+                className="
+                  ml-2 inline-flex items-center justify-center
+                  min-w-[24px] h-6 px-2
+                  bg-[#ff4d4d] text-white text-sm
+                  border-2 border-[#2d2d2d]
+                "
+                style={{
+                  borderRadius: wobbly.sm,
+                  fontFamily: "'Patrick Hand', cursive",
+                }}
+              >
+                {pendingCount}
+              </span>
+            )}
+          </h1>
+          {profile && (
+            <p
+              className="text-[#2d2d2d]/70"
+              style={{ fontFamily: "'Patrick Hand', cursive" }}
+            >
+              @{profile.username}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Pending Requests Section */}
+      <AnimatePresence>
+        {incomingRequests.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-6"
+          >
+            <h2
+              className="text-lg text-[#2d2d2d] mb-3"
+              style={{
+                fontFamily: "'Kalam', cursive",
+                fontWeight: 600,
+              }}
+            >
+              Friend Requests
+            </h2>
+            <div className="space-y-3">
+              {incomingRequests.map(({ friendship, profile: requesterProfile }) => (
+                <motion.div
+                  key={friendship.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={springConfig.default}
+                >
+                  <FriendRequestCard
+                    friendshipId={friendship.id}
+                    displayName={requesterProfile.displayName}
+                    username={requesterProfile.username}
+                    avatarUrl={requesterProfile.avatarUrl}
+                    onAccept={handleAcceptRequest}
+                    onDecline={handleDeclineRequest}
+                    isLoading={processingRequestId === friendship.id}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* User Search Section */}
+      {user && (
+        <UserSearchSection
+          currentUserId={user.uid}
+          onSendRequest={sendRequest}
+          existingFriendIds={friends.map((f) => f.profile.uid)}
+          pendingRequestIds={[
+            ...outgoingRequests.map((r) =>
+              r.friendship.users[0] === user.uid
+                ? r.friendship.users[1]
+                : r.friendship.users[0]
+            ),
+          ]}
+        />
+      )}
+
+      {/* Friends List */}
+      {isFriendsLoading ? (
+        <div className="flex justify-center py-8">
+          <div
+            className="
+              w-12 h-12
+              border-4 border-[#e5e0d8]
+              border-t-[#2d2d2d]
+              animate-spin
+            "
+            style={{ borderRadius: wobbly.circle }}
+          />
+        </div>
+      ) : friends.length > 0 ? (
+        <div className="space-y-3">
+          <h2
+            className="text-lg text-[#2d2d2d] mb-3"
+            style={{
+              fontFamily: "'Kalam', cursive",
+              fontWeight: 600,
+            }}
+          >
+            Your Friends ({friends.length})
+          </h2>
+          {friends.map(({ friendship, profile: friendProfile }) => (
+            <motion.div
+              key={friendship.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={springConfig.default}
+            >
+              <FriendCard
+                uid={friendProfile.uid}
+                displayName={friendProfile.displayName}
+                username={friendProfile.username}
+                avatarUrl={friendProfile.avatarUrl}
+                sharedBoardCount={sharedBoardCounts[friendProfile.uid]}
+                onClick={handleViewFriend}
+              />
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        // Empty state
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={springConfig.default}
+          className="
+            bg-white
+            border-[3px] border-[#2d2d2d]
+            shadow-[4px_4px_0px_0px_#2d2d2d]
+            p-6
+            text-center
+          "
+          style={{ borderRadius: wobbly.md }}
         >
-          Friends
-        </h1>
-        {profile && (
+          <div
+            className="
+              w-16 h-16 mx-auto mb-4
+              bg-[#e5e0d8]
+              border-[3px] border-[#2d2d2d]
+              flex items-center justify-center
+              text-3xl
+            "
+            style={{ borderRadius: wobbly.circle }}
+          >
+            <span role="img" aria-label="friends">
+              👋
+            </span>
+          </div>
+
+          <h3
+            className="text-xl text-[#2d2d2d] mb-2"
+            style={{
+              fontFamily: "'Kalam', cursive",
+              fontWeight: 700,
+            }}
+          >
+            No Friends Yet
+          </h3>
+
           <p
             className="text-[#2d2d2d]/70"
             style={{ fontFamily: "'Patrick Hand', cursive" }}
           >
-            @{profile.username}
+            Use the search above to find friends by username
           </p>
-        )}
-      </div>
-
-      {/* Placeholder content for Phase 2 */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={springConfig.default}
-        className="
-          bg-white
-          border-[3px] border-[#2d2d2d]
-          shadow-[4px_4px_0px_0px_#2d2d2d]
-          p-6
-          text-center
-        "
-        style={{ borderRadius: wobbly.md }}
-      >
-        <div
-          className="
-            w-16 h-16 mx-auto mb-4
-            bg-[#e5e0d8]
-            border-[3px] border-[#2d2d2d]
-            flex items-center justify-center
-            text-3xl
-          "
-          style={{ borderRadius: wobbly.circle }}
-        >
-          <span role="img" aria-label="coming soon">
-            🚧
-          </span>
-        </div>
-
-        <h3
-          className="text-xl text-[#2d2d2d] mb-2"
-          style={{
-            fontFamily: "'Kalam', cursive",
-            fontWeight: 700,
-          }}
-        >
-          Coming Soon
-        </h3>
-
-        <p
-          className="text-[#2d2d2d]/70"
-          style={{ fontFamily: "'Patrick Hand', cursive" }}
-        >
-          Friend search and invites will be available in the next update
-        </p>
-      </motion.div>
+        </motion.div>
+      )}
     </div>
   )
 }
