@@ -27,6 +27,7 @@ import {
   createMockProfile,
   type MockUser,
 } from '../lib/mockAuth'
+import { validateUsername, reserveUsername } from '../lib/usernameValidation'
 
 export interface UseAuthReturn {
   /** Firebase User object (null if not signed in) */
@@ -259,8 +260,6 @@ export const useAuth = (): UseAuthReturn => {
       // Mock auth mode
       if (USE_MOCK_AUTH) {
         try {
-          const { validateUsername } = await import('../lib/usernameValidation')
-
           // Validate first
           const validation = validateUsername(username)
           if (!validation.isValid) {
@@ -295,8 +294,6 @@ export const useAuth = (): UseAuthReturn => {
 
       // Firebase auth mode
       try {
-        const { reserveUsername } = await import('../lib/usernameValidation')
-        const { getFirebaseDb } = await import('../lib/firebase')
         const { doc, setDoc, serverTimestamp } = await import('firebase/firestore')
 
         // First, reserve the username

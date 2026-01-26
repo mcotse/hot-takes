@@ -2,6 +2,16 @@ import { test, expect } from '@playwright/test'
 
 const BASE_URL = 'http://localhost:5173/singles_infernal_rank/'
 
+// Timeout constants for consistent wait times
+const TIMEOUTS = {
+  /** Short wait for UI transitions and state updates */
+  SHORT: 300,
+  /** Standard wait for navigation and simple operations */
+  STANDARD: 500,
+  /** Long wait for async operations like auth and profile creation */
+  LONG: 1000,
+} as const
+
 /**
  * E2E tests for social authentication features
  * Uses mock auth (no Firebase required)
@@ -16,14 +26,14 @@ test.describe('Social Authentication Flow', () => {
       localStorage.removeItem('mock-usernames')
     })
     await page.reload()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
   })
 
   test('should show sign-in prompt on Friends page when not authenticated', async ({ page }) => {
     // Navigate to Friends tab
     const friendsTab = page.locator('button:has-text("Friends")')
     await friendsTab.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     // Take screenshot
     await page.screenshot({ path: 'e2e/screenshots/social-01-sign-in-prompt.png', fullPage: true })
@@ -42,7 +52,7 @@ test.describe('Social Authentication Flow', () => {
     // Navigate to Friends tab
     const friendsTab = page.locator('button:has-text("Friends")')
     await friendsTab.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     // Click sign in button
     const signInButton = page.locator('button:has-text("Sign in with Google")')
@@ -50,7 +60,7 @@ test.describe('Social Authentication Flow', () => {
     await signInButton.click()
 
     // Wait for mock auth to complete and modal to appear
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Take screenshot of username modal
     await page.screenshot({ path: 'e2e/screenshots/social-02-username-modal.png', fullPage: true })
@@ -72,7 +82,7 @@ test.describe('Social Authentication Flow', () => {
     await continueButton.click()
 
     // Wait for profile creation
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Take screenshot of friends page
     await page.screenshot({ path: 'e2e/screenshots/social-04-signed-in.png', fullPage: true })
@@ -91,29 +101,29 @@ test.describe('Social Authentication Flow', () => {
     // First, complete sign-in flow
     const friendsTab = page.locator('button:has-text("Friends")')
     await friendsTab.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     const signInButton = page.locator('button:has-text("Sign in with Google")')
     await signInButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Set username
     const usernameInput = page.locator('input[placeholder*="ranking_queen"]')
     await usernameInput.fill('persist_test_user')
     const continueButton = page.locator('button:has-text("Continue")')
     await continueButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Verify signed in
     await expect(page.locator('text=@persist_test_user')).toBeVisible()
 
     // Reload the page
     await page.reload()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Navigate back to Friends tab
     await friendsTab.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     // Take screenshot after reload
     await page.screenshot({ path: 'e2e/screenshots/social-05-after-reload.png', fullPage: true })
@@ -129,11 +139,11 @@ test.describe('Social Authentication Flow', () => {
     // Navigate to Friends tab and sign in
     const friendsTab = page.locator('button:has-text("Friends")')
     await friendsTab.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     const signInButton = page.locator('button:has-text("Sign in with Google")')
     await signInButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Wait for modal
     await expect(page.locator('text=Choose Your Username')).toBeVisible()
@@ -143,7 +153,7 @@ test.describe('Social Authentication Flow', () => {
     await usernameInput.fill('ab')
     const continueButton = page.locator('button:has-text("Continue")')
     await continueButton.click()
-    await page.waitForTimeout(300)
+    await page.waitForTimeout(TIMEOUTS.SHORT)
 
     // Take screenshot of validation error
     await page.screenshot({ path: 'e2e/screenshots/social-06-validation-error.png', fullPage: true })
@@ -154,7 +164,7 @@ test.describe('Social Authentication Flow', () => {
     // Fix the username
     await usernameInput.fill('valid_user_name')
     await continueButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Verify it works now
     await expect(page.locator('text=@valid_user_name')).toBeVisible()
@@ -166,17 +176,17 @@ test.describe('Social Authentication Flow', () => {
     // First, create a user with a specific username
     const friendsTab = page.locator('button:has-text("Friends")')
     await friendsTab.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     let signInButton = page.locator('button:has-text("Sign in with Google")')
     await signInButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     let usernameInput = page.locator('input[placeholder*="ranking_queen"]')
     await usernameInput.fill('unique_name')
     let continueButton = page.locator('button:has-text("Continue")')
     await continueButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Verify first user signed in
     await expect(page.locator('text=@unique_name')).toBeVisible()
@@ -189,22 +199,22 @@ test.describe('Social Authentication Flow', () => {
       // Keep mock-usernames to simulate another user
     })
     await page.reload()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     // Navigate to Friends and sign in again
     await friendsTab.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     signInButton = page.locator('button:has-text("Sign in with Google")')
     await signInButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Try the same username
     usernameInput = page.locator('input[placeholder*="ranking_queen"]')
     await usernameInput.fill('unique_name')
     continueButton = page.locator('button:has-text("Continue")')
     await continueButton.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(TIMEOUTS.STANDARD)
 
     // Take screenshot of duplicate error
     await page.screenshot({ path: 'e2e/screenshots/social-07-duplicate-username.png', fullPage: true })
@@ -215,7 +225,7 @@ test.describe('Social Authentication Flow', () => {
     // Use a different username
     await usernameInput.fill('different_name')
     await continueButton.click()
-    await page.waitForTimeout(1000)
+    await page.waitForTimeout(TIMEOUTS.LONG)
 
     // Verify it works
     await expect(page.locator('text=@different_name')).toBeVisible()

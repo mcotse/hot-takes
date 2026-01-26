@@ -155,7 +155,7 @@ export const FriendsPage = () => {
       {/* Username setup modal - cannot be dismissed until username is set */}
       <UsernameSetupModal
         isOpen={needsUsername}
-        onClose={() => {}}
+        onClose={() => {}} // No-op: modal cannot be dismissed, user must complete username setup
         onSubmit={handleUsernameSubmit}
         isLoading={isCreatingProfile}
         error={error}
