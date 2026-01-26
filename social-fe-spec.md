@@ -469,7 +469,7 @@ match /friendships/{friendshipId} {
 - [x] User profile creation with username validation
 - [x] Username uniqueness enforcement
 - [x] Reserved usernames protection (admin, root, support, etc.)
-- [ ] Basic data sync (boards to cloud) - **NEXT**
+- [x] Basic data sync (boards to cloud)
 
 #### Phase 1 Implementation Notes
 - **Files added:**
@@ -477,12 +477,16 @@ match /friendships/{friendshipId} {
   - `src/lib/mockAuth.ts` - Mock auth for dev mode
   - `src/lib/socialTypes.ts` - TypeScript types for social features
   - `src/lib/usernameValidation.ts` - Username rules and validation
+  - `src/lib/firestoreBoards.ts` - CloudBoard types and Firestore CRUD operations
   - `src/hooks/useAuth.ts` - Authentication hook
+  - `src/hooks/useBoardSync.ts` - Board sync state management
   - `src/components/modals/UsernameSetupModal.tsx` - First-time username entry
-  - `src/pages/FriendsPage.tsx` - Friends tab with sign-in flow
+  - `src/components/modals/SyncMigrationModal.tsx` - First-time sync prompt
+  - `src/pages/FriendsPage.tsx` - Friends tab with sign-in and sync flow
   - `src/pages/SettingsPage.tsx` - Updated with Account section
 - **Dev mode:** Set `VITE_USE_MOCK_AUTH=true` (default in dev) to bypass Firebase
 - **Username rules:** 3-20 chars, alphanumeric + underscore, no consecutive underscores, reserved names blocked
+- **Sync behavior:** On first sign-in, users are prompted to sync local boards to cloud. Local always wins conflicts.
 
 ### Phase 2: Friends System
 - [ ] Friend requests (send/accept/decline)
