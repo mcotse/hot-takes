@@ -19,6 +19,10 @@ vi.mock('firebase/firestore', () => ({
   query: vi.fn(),
   where: vi.fn(),
   getDocs: vi.fn(),
+  writeBatch: vi.fn(() => ({
+    set: vi.fn(),
+    commit: vi.fn(),
+  })),
   Timestamp: {
     now: () => ({ toMillis: () => Date.now() }),
     fromMillis: (ms: number) => ({ toMillis: () => ms }),
@@ -437,6 +441,81 @@ describe('firestoreBoards', () => {
       })
 
       expect(canUserViewBoard(cloudBoard, mockUserId, [])).toBe(false)
+    })
+  })
+
+  describe('filterVisibleBoards', () => {
+    it('should filter boards to only those viewable by user', async () => {
+      const { toCloudBoard, updateBoardSharing, filterVisibleBoards } = await import('./firestoreBoards')
+
+      const privateBoard = toCloudBoard({ ...mockBoard, id: 'private' }, 'friend-1')
+      const friendsBoard = updateBoardSharing(
+        toCloudBoard({ ...mockBoard, id: 'friends' }, 'friend-1'),
+        { visibility: 'friends' }
+      )
+      const publicBoard = updateBoardSharing(
+        toCloudBoard({ ...mockBoard, id: 'public' }, 'friend-1'),
+        { visibility: 'public' }
+      )
+
+      const boards = [privateBoard, friendsBoard, publicBoard]
+
+      // User is friends with friend-1
+      const visible = filterVisibleBoards(boards, mockUserId, ['friend-1'])
+
+      // Should see friends and public boards, not private
+      expect(visible).toHaveLength(2)
+      expect(visible.map(b => b.id)).toContain('friends')
+      expect(visible.map(b => b.id)).toContain('public')
+      expect(visible.map(b => b.id)).not.toContain('private')
+    })
+
+    it('should include boards owned by user', async () => {
+      const { toCloudBoard, filterVisibleBoards } = await import('./firestoreBoards')
+
+      const ownBoard = toCloudBoard({ ...mockBoard, id: 'own' }, mockUserId)
+      const otherBoard = toCloudBoard({ ...mockBoard, id: 'other' }, 'someone-else')
+
+      const boards = [ownBoard, otherBoard]
+      const visible = filterVisibleBoards(boards, mockUserId, [])
+
+      // Should only see own board
+      expect(visible).toHaveLength(1)
+      expect(visible[0].id).toBe('own')
+    })
+  })
+
+  describe('getSharedBoardCountByFriend', () => {
+    it('should count boards shared by a friend that user can view', async () => {
+      const { toCloudBoard, updateBoardSharing, getSharedBoardCountByFriend } = await import('./firestoreBoards')
+
+      const friendUid = 'friend-1'
+      const friendsBoard1 = updateBoardSharing(
+        toCloudBoard({ ...mockBoard, id: 'board-1' }, friendUid),
+        { visibility: 'friends' }
+      )
+      const friendsBoard2 = updateBoardSharing(
+        toCloudBoard({ ...mockBoard, id: 'board-2' }, friendUid),
+        { visibility: 'friends' }
+      )
+      const privateBoard = toCloudBoard({ ...mockBoard, id: 'private' }, friendUid)
+
+      const allBoards = [friendsBoard1, friendsBoard2, privateBoard]
+
+      const count = getSharedBoardCountByFriend(allBoards, friendUid, mockUserId, [friendUid])
+
+      expect(count).toBe(2)
+    })
+
+    it('should return 0 when friend has no shared boards', async () => {
+      const { toCloudBoard, getSharedBoardCountByFriend } = await import('./firestoreBoards')
+
+      const privateBoard = toCloudBoard({ ...mockBoard, id: 'private' }, 'friend-1')
+      const allBoards = [privateBoard]
+
+      const count = getSharedBoardCountByFriend(allBoards, 'friend-1', mockUserId, ['friend-1'])
+
+      expect(count).toBe(0)
     })
   })
 })

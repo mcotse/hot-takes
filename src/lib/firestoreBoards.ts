@@ -358,3 +358,44 @@ export const canUserViewBoard = (
       return false
   }
 }
+
+/**
+ * Filter a list of boards to only those viewable by the user
+ *
+ * @param boards - List of cloud boards to filter
+ * @param userId - The user trying to view
+ * @param userFriendIds - IDs of the user's friends (owner UIDs)
+ * @returns Boards the user can view
+ */
+export const filterVisibleBoards = (
+  boards: CloudBoard[],
+  userId: string,
+  userFriendIds: string[]
+): CloudBoard[] => {
+  return boards.filter((board) => canUserViewBoard(board, userId, userFriendIds))
+}
+
+/**
+ * Get count of boards shared by a friend that the user can view
+ *
+ * @param allBoards - All boards to search through
+ * @param friendId - The friend's user ID (board owner)
+ * @param userId - The viewing user's ID
+ * @param userFriendIds - IDs of all the user's friends
+ * @returns Number of viewable boards from this friend
+ */
+export const getSharedBoardCountByFriend = (
+  allBoards: CloudBoard[],
+  friendId: string,
+  userId: string,
+  userFriendIds: string[]
+): number => {
+  return allBoards.filter((board) => {
+    // Must be owned by the friend
+    if (board.ownerId !== friendId) {
+      return false
+    }
+    // Must be viewable by the user (not private)
+    return canUserViewBoard(board, userId, userFriendIds)
+  }).length
+}
