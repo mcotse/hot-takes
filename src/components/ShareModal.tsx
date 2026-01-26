@@ -142,9 +142,15 @@ export const ShareModal = ({
     if (!linkId) return
 
     const url = `${window.location.origin}/board/${linkId}`
-    await navigator.clipboard.writeText(url)
-    setCopySuccess(true)
-    setTimeout(() => setCopySuccess(false), 2000)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy link:', err)
+      // Fallback: show the URL in an alert if clipboard fails
+      alert(`Copy this link: ${url}`)
+    }
   }, [currentSharing.publicLinkId, publicLinkId])
 
   return (
