@@ -54,7 +54,8 @@ export interface UseAuthReturn {
 export const useAuth = (): UseAuthReturn => {
   const [user, setUser] = useState<User | MockUser | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  // Start as true to prevent flash of unauthenticated content while checking auth state
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Derived state: user signed in but no profile yet
@@ -106,6 +107,8 @@ export const useAuth = (): UseAuthReturn => {
 
     // Firebase auth mode
     if (!isFirebaseConfigured()) {
+      // Firebase not configured - no auth possible
+      setIsLoading(false)
       return
     }
 

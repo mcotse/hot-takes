@@ -27,6 +27,8 @@ export interface UsernameSetupModalProps {
   isLoading: boolean
   /** External error message (e.g., username already taken) */
   error: string | null
+  /** Whether the modal can be dismissed (default: true) */
+  allowDismiss?: boolean
 }
 
 export const UsernameSetupModal = ({
@@ -35,6 +37,7 @@ export const UsernameSetupModal = ({
   onSubmit,
   isLoading,
   error: externalError,
+  allowDismiss = true,
 }: UsernameSetupModalProps) => {
   const [username, setUsername] = useState('')
   const [validationError, setValidationError] = useState<string | null>(null)
@@ -42,8 +45,10 @@ export const UsernameSetupModal = ({
   // Combined error (external takes precedence)
   const error = externalError || validationError
 
-  // Handle escape key
+  // Handle escape key - only if modal is dismissible
   useEffect(() => {
+    if (!allowDismiss) return
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose()
@@ -52,7 +57,7 @@ export const UsernameSetupModal = ({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, allowDismiss])
 
   // Prevent body scroll when open
   useEffect(() => {
@@ -100,7 +105,7 @@ export const UsernameSetupModal = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="absolute inset-0 bg-black/40"
-            onClick={onClose}
+            onClick={allowDismiss ? onClose : undefined}
           />
 
           {/* Modal */}

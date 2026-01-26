@@ -31,9 +31,13 @@ describe('useAuth', () => {
       expect(result.current.profile).toBeNull()
     })
 
-    it('starts with loading false when Firebase not configured', () => {
+    it('starts with loading true, then becomes false when Firebase not configured', async () => {
       const { result } = renderHook(() => useAuth())
-      expect(result.current.isLoading).toBe(false)
+      // Initial state is loading=true to prevent flash of content
+      // But it quickly becomes false once useEffect runs and sees Firebase not configured
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false)
+      })
     })
 
     it('has no error initially', () => {

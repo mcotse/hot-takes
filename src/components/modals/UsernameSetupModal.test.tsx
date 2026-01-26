@@ -119,7 +119,7 @@ describe('UsernameSetupModal', () => {
   })
 
   describe('close behavior', () => {
-    it('calls onClose when backdrop clicked', () => {
+    it('calls onClose when backdrop clicked (allowDismiss=true)', () => {
       render(<UsernameSetupModal {...defaultProps} />)
 
       fireEvent.click(screen.getByTestId('backdrop'))
@@ -127,12 +127,28 @@ describe('UsernameSetupModal', () => {
       expect(defaultProps.onClose).toHaveBeenCalled()
     })
 
-    it('calls onClose on escape key', () => {
+    it('calls onClose on escape key (allowDismiss=true)', () => {
       render(<UsernameSetupModal {...defaultProps} />)
 
       fireEvent.keyDown(document, { key: 'Escape' })
 
       expect(defaultProps.onClose).toHaveBeenCalled()
+    })
+
+    it('does not call onClose when backdrop clicked if allowDismiss=false', () => {
+      render(<UsernameSetupModal {...defaultProps} allowDismiss={false} />)
+
+      fireEvent.click(screen.getByTestId('backdrop'))
+
+      expect(defaultProps.onClose).not.toHaveBeenCalled()
+    })
+
+    it('does not call onClose on escape key if allowDismiss=false', () => {
+      render(<UsernameSetupModal {...defaultProps} allowDismiss={false} />)
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(defaultProps.onClose).not.toHaveBeenCalled()
     })
   })
 })

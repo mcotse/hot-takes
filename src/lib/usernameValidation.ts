@@ -12,6 +12,41 @@ export const USERNAME_MIN_LENGTH = 3
 export const USERNAME_MAX_LENGTH = 20
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/
 
+/** Reserved usernames that cannot be claimed by users */
+export const RESERVED_USERNAMES = new Set([
+  // System/admin
+  'admin',
+  'administrator',
+  'root',
+  'system',
+  'support',
+  'help',
+  'mod',
+  'moderator',
+  'staff',
+  // App-specific
+  'ranky',
+  'ranking',
+  'rankings',
+  'official',
+  'team',
+  // Common reserved
+  'null',
+  'undefined',
+  'anonymous',
+  'unknown',
+  'user',
+  'guest',
+  'test',
+  'demo',
+  'api',
+  'www',
+  'mail',
+  'email',
+  'info',
+  'contact',
+])
+
 export interface ValidationResult {
   isValid: boolean
   error?: string
@@ -76,6 +111,14 @@ export const validateUsername = (username: string): ValidationResult => {
     }
   }
 
+  // Check for reserved usernames
+  if (RESERVED_USERNAMES.has(trimmed.toLowerCase())) {
+    return {
+      isValid: false,
+      error: 'This username is reserved',
+    }
+  }
+
   return { isValid: true }
 }
 
@@ -87,8 +130,8 @@ export const normalizeUsername = (username: string): string => {
 }
 
 /**
- * Check if a username is available in Firestore
- * Uses /usernames/{normalized} collection for uniqueness
+ * Check if a username is available
+ * Uses mock storage in dev mode, Firestore in production
  */
 export const checkUsernameAvailability = async (
   username: string
@@ -99,6 +142,13 @@ export const checkUsernameAvailability = async (
   }
 
   try {
+    const { USE_MOCK_AUTH } = await import('./firebase')
+
+    if (USE_MOCK_AUTH) {
+      const { checkMockUsernameAvailability } = await import('./mockAuth')
+      return checkMockUsernameAvailability(username)
+    }
+
     const { getFirebaseDb } = await import('./firebase')
     const { doc, getDoc } = await import('firebase/firestore')
 

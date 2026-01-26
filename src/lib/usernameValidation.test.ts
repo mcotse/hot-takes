@@ -4,6 +4,7 @@ import {
   USERNAME_MIN_LENGTH,
   USERNAME_MAX_LENGTH,
   USERNAME_PATTERN,
+  RESERVED_USERNAMES,
 } from './usernameValidation'
 
 describe('usernameValidation', () => {
@@ -126,6 +127,47 @@ describe('usernameValidation', () => {
         const result = validateUsername('john__doe')
         expect(result.isValid).toBe(false)
         expect(result.error).toBe('Username cannot have consecutive underscores')
+      })
+    })
+
+    describe('reserved usernames', () => {
+      it('rejects "admin"', () => {
+        const result = validateUsername('admin')
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBe('This username is reserved')
+      })
+
+      it('rejects "Admin" (case insensitive)', () => {
+        const result = validateUsername('Admin')
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBe('This username is reserved')
+      })
+
+      it('rejects "support"', () => {
+        const result = validateUsername('support')
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBe('This username is reserved')
+      })
+
+      it('rejects "root"', () => {
+        const result = validateUsername('root')
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBe('This username is reserved')
+      })
+
+      it('rejects app-specific reserved names', () => {
+        const result = validateUsername('ranky')
+        expect(result.isValid).toBe(false)
+        expect(result.error).toBe('This username is reserved')
+      })
+
+      it('has a reasonable set of reserved names', () => {
+        // Should have common system/admin names
+        expect(RESERVED_USERNAMES.has('admin')).toBe(true)
+        expect(RESERVED_USERNAMES.has('root')).toBe(true)
+        expect(RESERVED_USERNAMES.has('support')).toBe(true)
+        // Should not be overly restrictive
+        expect(RESERVED_USERNAMES.size).toBeLessThan(50)
       })
     })
   })

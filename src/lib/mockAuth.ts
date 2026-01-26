@@ -11,6 +11,17 @@
  */
 
 import type { UserProfile } from './socialTypes'
+import type { Timestamp } from 'firebase/firestore'
+
+/** Create a mock Timestamp that matches Firebase's Timestamp interface */
+const createMockTimestamp = (ms: number): Timestamp => ({
+  seconds: Math.floor(ms / 1000),
+  nanoseconds: (ms % 1000) * 1e6,
+  toDate: () => new Date(ms),
+  toMillis: () => ms,
+  isEqual: (other: Timestamp) => other.toMillis() === ms,
+  valueOf: () => `Timestamp(seconds=${Math.floor(ms / 1000)}, nanoseconds=${(ms % 1000) * 1e6})`,
+})
 
 const MOCK_AUTH_KEY = 'mock-auth-user'
 const MOCK_PROFILES_KEY = 'mock-user-profiles'
@@ -188,6 +199,7 @@ export const createMockProfile = async (
   // Create profile
   const profiles = getMockProfiles()
   const now = Date.now()
+  const timestamp = createMockTimestamp(now)
   profiles[uid] = {
     uid,
     username,
@@ -195,8 +207,8 @@ export const createMockProfile = async (
     avatarUrl,
     isSearchable: true,
     blockedUsers: [],
-    createdAt: { seconds: Math.floor(now / 1000), nanoseconds: 0 } as never,
-    lastActive: { seconds: Math.floor(now / 1000), nanoseconds: 0 } as never,
+    createdAt: timestamp,
+    lastActive: timestamp,
   }
   saveMockProfiles(profiles)
 

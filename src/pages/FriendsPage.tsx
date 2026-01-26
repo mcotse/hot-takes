@@ -152,13 +152,14 @@ export const FriendsPage = () => {
   // Render friends content for authenticated users
   return (
     <div className="p-4">
-      {/* Username setup modal */}
+      {/* Username setup modal - cannot be dismissed until username is set */}
       <UsernameSetupModal
         isOpen={needsUsername}
-        onClose={() => {}} // Can't close until username is set
+        onClose={() => {}}
         onSubmit={handleUsernameSubmit}
         isLoading={isCreatingProfile}
         error={error}
+        allowDismiss={false}
       />
 
       {/* Friends header */}
