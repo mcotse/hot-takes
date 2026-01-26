@@ -114,10 +114,35 @@ export const BoardSettingsSheet = ({
     if (!board.sharing.publicLinkId) return
 
     const url = `${window.location.origin}/board/${board.sharing.publicLinkId}`
-    await navigator.clipboard.writeText(url)
-    setCopySuccess(true)
-    setTimeout(() => setCopySuccess(false), 2000)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy link:', err)
+      // Fallback: show the URL in an alert if clipboard fails
+      alert(`Copy this link: ${url}`)
+    }
   }, [board.sharing.publicLinkId])
+
+  // Handle revoke link - generates a new link ID to invalidate the old one
+  const handleRevokeLink = useCallback(async () => {
+    if (!board.sharing.publicLinkId) return
+
+    setIsSaving(true)
+    try {
+      // Setting publicLinkId to undefined with publicLinkEnabled true
+      // signals to onSave that a new link should be generated
+      const newSharing: BoardSharing = {
+        visibility: 'public',
+        publicLinkEnabled: true,
+        // Omit publicLinkId to trigger new link generation
+      }
+      await onSave(newSharing)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [board.sharing.publicLinkId, onSave])
 
   // Handle save
   const handleSave = useCallback(async () => {
@@ -340,24 +365,23 @@ export const BoardSettingsSheet = ({
 
                   <button
                     type="button"
-                    onClick={() => {
-                      // Revoke link functionality would be handled via onSave
-                      // with a new publicLinkId generated
-                    }}
-                    className="
+                    onClick={handleRevokeLink}
+                    disabled={isSaving}
+                    className={`
                       py-2 px-4
                       bg-white
                       text-[#ff4d4d]
                       border-2 border-[#ff4d4d]
                       hover:bg-[#ff4d4d] hover:text-white
                       transition-colors
-                    "
+                      ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}
                     style={{
                       borderRadius: wobbly.sm,
                       fontFamily: "'Patrick Hand', cursive",
                     }}
                   >
-                    Revoke Link
+                    {isSaving ? 'Revoking...' : 'Revoke Link'}
                   </button>
                 </div>
               )}
