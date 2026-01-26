@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Snapshot } from '../lib/types'
 import { wobbly } from '../styles/wobbly'
 import { springConfig } from '../styles/tokens'
+import { getDisplayNameFromEntry } from '../hooks/useDisplayName'
 
 export interface EpisodeTimelineProps {
   /** Snapshots to display, sorted by episode number */
@@ -12,6 +13,8 @@ export interface EpisodeTimelineProps {
   onSnapshotDelete?: (snapshotId: string) => void
   /** Currently selected snapshot ID */
   selectedSnapshotId?: string
+  /** Whether to display nicknames instead of real names */
+  useNickname?: boolean
 }
 
 /**
@@ -27,6 +30,20 @@ const formatDate = (timestamp: number): string => {
 }
 
 /**
+ * Get top 3 rankings formatted as inline preview
+ */
+const getTop3Preview = (snapshot: Snapshot, useNickname: boolean): string => {
+  const top3 = snapshot.rankings
+    .slice()
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 3)
+
+  return top3
+    .map((entry, idx) => `${idx + 1}. ${getDisplayNameFromEntry(entry, useNickname)}`)
+    .join(', ')
+}
+
+/**
  * EpisodeCard Component
  * Individual episode item in the timeline
  */
@@ -35,11 +52,13 @@ const EpisodeCard = ({
   isSelected,
   onSelect,
   onDelete,
+  useNickname = false,
 }: {
   snapshot: Snapshot
   isSelected: boolean
   onSelect: () => void
   onDelete?: () => void
+  useNickname?: boolean
 }) => {
   return (
     <motion.div
@@ -111,6 +130,15 @@ const EpisodeCard = ({
               "{snapshot.notes}"
             </p>
           )}
+          {/* Top 3 inline preview */}
+          {snapshot.rankings.length > 0 && (
+            <p
+              className="text-xs text-[#2d5da1] mt-1 truncate"
+              style={{ fontFamily: "'Patrick Hand', cursive" }}
+            >
+              {getTop3Preview(snapshot, useNickname)}
+            </p>
+          )}
         </div>
 
         {/* Delete button (optional) */}
@@ -173,6 +201,7 @@ export const EpisodeTimeline = ({
   onSnapshotSelect,
   onSnapshotDelete,
   selectedSnapshotId,
+  useNickname = false,
 }: EpisodeTimelineProps) => {
   if (snapshots.length === 0) {
     return <EmptyState />
@@ -188,6 +217,7 @@ export const EpisodeTimeline = ({
             isSelected={selectedSnapshotId === snapshot.id}
             onSelect={() => onSnapshotSelect(snapshot.id)}
             onDelete={onSnapshotDelete ? () => onSnapshotDelete(snapshot.id) : undefined}
+            useNickname={useNickname}
           />
         ))}
       </AnimatePresence>

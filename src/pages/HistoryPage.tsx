@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useBoards } from '../hooks/useBoards'
 import { useSnapshots } from '../hooks/useSnapshots'
 import { useImageStorage } from '../hooks/useImageStorage'
@@ -6,6 +6,8 @@ import { EpisodeTimeline } from '../components/EpisodeTimeline'
 import { CompareView } from '../components/CompareView'
 import { RankingTrendsChart } from '../components/RankingTrendsChart'
 import { Button } from '../components/ui/Button'
+import { NicknameToggle } from '../components/ui/NicknameToggle'
+import { getSettings, saveSettings } from '../lib/storage'
 import { wobbly } from '../styles/wobbly'
 
 type ViewMode = 'list' | 'chart' | 'compare'
@@ -151,6 +153,18 @@ export const HistoryPage = () => {
   const [leftSnapshotId, setLeftSnapshotId] = useState<string | null>(null)
   const [rightSnapshotId, setRightSnapshotId] = useState<string | null>(null)
 
+  // Nickname toggle state for timeline view
+  const [useNickname, setUseNickname] = useState(() => getSettings().nicknameModeTimeline)
+
+  // Toggle nickname mode and persist to settings
+  const handleToggleNickname = useCallback(() => {
+    setUseNickname(prev => {
+      const newValue = !prev
+      saveSettings({ nicknameModeTimeline: newValue })
+      return newValue
+    })
+  }, [])
+
   // Get snapshots for selected board
   const { snapshots, deleteSnapshot } = useSnapshots(selectedBoardId ?? '')
 
@@ -277,6 +291,13 @@ export const HistoryPage = () => {
   const canCompare = snapshots.length >= 2
   const canShowChart = snapshots.length >= 2
 
+  // Check if any snapshot has entries with nicknames
+  const hasAnyNicknames = useMemo(() => {
+    return snapshots.some(snapshot =>
+      snapshot.rankings.some(entry => entry.cardNickname && entry.cardNickname.trim() !== '')
+    )
+  }, [snapshots])
+
   return (
     <div className="min-h-full">
       {/* Header */}
@@ -319,6 +340,13 @@ export const HistoryPage = () => {
           onSelect={setSelectedBoardId}
         />
 
+        {/* Nickname Toggle for list view */}
+        {viewMode === 'list' && hasAnyNicknames && (
+          <div className="flex justify-end mt-3">
+            <NicknameToggle enabled={useNickname} onToggle={handleToggleNickname} />
+          </div>
+        )}
+
         {/* Compare Episode Selectors */}
         {viewMode === 'compare' && canCompare && (
           <div className="flex gap-3 mt-4">
@@ -353,6 +381,7 @@ export const HistoryPage = () => {
             snapshots={snapshots}
             onSnapshotSelect={handleSnapshotSelect}
             onSnapshotDelete={deleteSnapshot}
+            useNickname={useNickname}
           />
         )}
       </div>

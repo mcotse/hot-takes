@@ -26,6 +26,8 @@ export interface AppSettings {
   nicknameModeCompareView: boolean
   /** Show nicknames instead of real names in trends chart */
   nicknameModeChart: boolean
+  /** Show nicknames instead of real names in history timeline */
+  nicknameModeTimeline: boolean
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -33,6 +35,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   nicknameModeRankList: false,
   nicknameModeCompareView: false,
   nicknameModeChart: false,
+  nicknameModeTimeline: false,
 }
 
 // ============ Boards ============
