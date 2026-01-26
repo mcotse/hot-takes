@@ -1,7 +1,7 @@
 # Social Features Specification
 
-> **Status:** Phase 3 Complete
-> **Version:** 0.3.0
+> **Status:** Phase 4 Complete
+> **Version:** 0.4.0
 > **Last Updated:** 2026-01-25
 
 ## Overview
@@ -530,20 +530,46 @@ match /friendships/{friendshipId} {
   - BoardSettingsSheet for detailed sharing config
   - ShareModal for quick one-tap sharing
 
-### Phase 4: Templates & Comparison
-- [ ] Template data model
-- [ ] Template picker UI
-- [ ] Board from template flow
-- [ ] Comparison matching logic
-- [ ] Side-by-side comparison view
-- [ ] Agreement percentage calculation
+### Phase 4: Templates & Comparison ✅ COMPLETE
+- [x] Template data model
+- [x] Template picker UI
+- [x] Board from template flow
+- [x] Comparison matching logic
+- [x] Side-by-side comparison view
+- [x] Agreement percentage calculation
 
-### Phase 5: Moderation & Polish
-- [ ] Report system
-- [ ] Block/unfriend flows
-- [ ] Rate limiting
-- [ ] Admin dashboard (separate)
-- [ ] Error handling & edge cases
+#### Phase 4 Implementation Notes
+- **Files added:**
+  - `src/lib/firestoreTemplates.ts` - Template Firestore operations, mock data, and board-from-template creation
+  - `src/hooks/useTemplates.ts` - Templates fetching and filtering hook
+  - `src/hooks/useComparison.ts` - Comparison matching logic and agreement calculation
+  - `src/components/TemplateCard.tsx` - Template preview card component
+  - `src/pages/TemplatePickerPage.tsx` - Browse and select templates
+  - `src/pages/ComparisonPage.tsx` - Side-by-side comparison view
+- **Features:**
+  - Templates with mock data for development
+  - Category filtering in template picker
+  - Create board from template with pre-populated cards
+  - Template matching by templateId for comparison
+  - Title matching (case-insensitive) for custom boards
+  - Agreement percentage calculation based on position proximity
+  - Side-by-side comparison view with rank differences highlighted
+- **Board type extended:** Added optional `templateId` field to Board interface
+
+### Phase 5: Moderation & Polish [COMPLETED 2026-01-25]
+- [x] Report system
+  - `firestoreReports.ts` - Firestore CRUD for `/reports` collection
+  - `useReports.ts` hook - Report state management with duplicate prevention
+  - `ReportModal.tsx` - Report form with 5 reason types + details textarea
+- [x] Block/unfriend flows
+  - `ConfirmModal.tsx` - Reusable confirmation dialog with danger variant
+  - Action buttons in FriendProfilePage (Unfriend, Block, Report)
+  - Toast notifications for action feedback
+- [x] Rate limiting
+  - `rateLimiting.ts` - Client-side rate limits (20 friend requests/day, 10 reports/day, 50 boards/day)
+- [ ] Admin dashboard (separate project - out of scope)
+- [x] Error handling & edge cases
+  - `errorUtils.ts` - Maps technical errors to user-friendly messages
 
 ---
 

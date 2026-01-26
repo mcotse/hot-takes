@@ -7,17 +7,23 @@
  * - List of shared boards (only those visible to current user)
  * - Board cards that navigate to board view
  * - Back button to return to friends list
+ * - Action buttons: Unfriend, Block, Report
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { BoardCard } from '../components/BoardCard'
+import { ConfirmModal } from '../components/modals/ConfirmModal'
+import { ReportModal } from '../components/modals/ReportModal'
+import { useToast } from '../components/ui/Toast'
 import { wobbly } from '../styles/wobbly'
 import { springConfig } from '../styles/tokens'
 import { getUserById } from '../lib/firestoreUsers'
 import { getCloudBoardsByOwner, filterVisibleBoards } from '../lib/firestoreBoards'
+import { getUserFriendlyError } from '../lib/errorUtils'
 import type { UserProfile } from '../lib/socialTypes'
 import type { CloudBoard } from '../lib/firestoreBoards'
+import type { FriendshipResult } from '../lib/firestoreFriendships'
 
 export interface FriendProfilePageProps {
   /** The friend's user ID */
@@ -30,6 +36,10 @@ export interface FriendProfilePageProps {
   onBack: () => void
   /** Called when a board is clicked */
   onViewBoard: (boardId: string) => void
+  /** Called when unfriend action is triggered */
+  onUnfriend?: (friendUid: string) => Promise<FriendshipResult>
+  /** Called when block action is triggered */
+  onBlock?: (userUid: string) => Promise<FriendshipResult>
 }
 
 /**
@@ -49,11 +59,22 @@ export const FriendProfilePage = ({
   friendIds,
   onBack,
   onViewBoard,
+  onUnfriend,
+  onBlock,
 }: FriendProfilePageProps) => {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [boards, setBoards] = useState<CloudBoard[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Modal state
+  const [showUnfriendConfirm, setShowUnfriendConfirm] = useState(false)
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [isActionLoading, setIsActionLoading] = useState(false)
+
+  // Toast notifications
+  const { showToast, ToastContainer } = useToast()
 
   // Load friend profile and boards
   useEffect(() => {
@@ -80,7 +101,7 @@ export const FriendProfilePage = ({
         setBoards(visibleBoards)
       } catch (err) {
         console.error('Error loading friend data:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load friend data')
+        setError(getUserFriendlyError(err))
       } finally {
         setIsLoading(false)
       }
@@ -96,6 +117,53 @@ export const FriendProfilePage = ({
     },
     [onViewBoard]
   )
+
+  // Handle unfriend action
+  const handleUnfriend = useCallback(async () => {
+    if (!onUnfriend) return
+
+    setIsActionLoading(true)
+    try {
+      const result = await onUnfriend(friendId)
+      if (result.success) {
+        showToast('Unfriended successfully', 'success')
+        setShowUnfriendConfirm(false)
+        onBack()
+      } else {
+        showToast(getUserFriendlyError(result.error), 'error')
+      }
+    } catch (err) {
+      showToast(getUserFriendlyError(err), 'error')
+    } finally {
+      setIsActionLoading(false)
+    }
+  }, [friendId, onUnfriend, showToast, onBack])
+
+  // Handle block action
+  const handleBlock = useCallback(async () => {
+    if (!onBlock) return
+
+    setIsActionLoading(true)
+    try {
+      const result = await onBlock(friendId)
+      if (result.success) {
+        showToast('User blocked', 'success')
+        setShowBlockConfirm(false)
+        onBack()
+      } else {
+        showToast(getUserFriendlyError(result.error), 'error')
+      }
+    } catch (err) {
+      showToast(getUserFriendlyError(err), 'error')
+    } finally {
+      setIsActionLoading(false)
+    }
+  }, [friendId, onBlock, showToast, onBack])
+
+  // Handle report submitted
+  const handleReportSubmitted = useCallback(() => {
+    showToast('Report submitted', 'success')
+  }, [showToast])
 
   // Loading state
   if (isLoading) {
@@ -244,6 +312,69 @@ export const FriendProfilePage = ({
             </p>
           </div>
         </motion.div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 mt-4">
+          {onUnfriend && (
+            <button
+              type="button"
+              onClick={() => setShowUnfriendConfirm(true)}
+              className="
+                flex-1 px-3 py-2
+                text-[#2d2d2d]
+                border-2 border-[#2d2d2d]
+                bg-white
+                hover:bg-[#e5e0d8]
+                transition-colors
+              "
+              style={{
+                borderRadius: wobbly.sm,
+                fontFamily: "'Patrick Hand', cursive",
+              }}
+            >
+              Unfriend
+            </button>
+          )}
+          {onBlock && (
+            <button
+              type="button"
+              onClick={() => setShowBlockConfirm(true)}
+              className="
+                flex-1 px-3 py-2
+                text-[#ff4d4d]
+                border-2 border-[#ff4d4d]
+                bg-white
+                hover:bg-[#ff4d4d]/10
+                transition-colors
+              "
+              style={{
+                borderRadius: wobbly.sm,
+                fontFamily: "'Patrick Hand', cursive",
+              }}
+            >
+              Block
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowReportModal(true)}
+            className="
+              flex-1 px-3 py-2
+              text-[#2d2d2d]/70
+              border-2 border-[#2d2d2d]/30
+              bg-white
+              hover:bg-[#e5e0d8]
+              hover:border-[#2d2d2d]
+              transition-colors
+            "
+            style={{
+              borderRadius: wobbly.sm,
+              fontFamily: "'Patrick Hand', cursive",
+            }}
+          >
+            Report
+          </button>
+        </div>
       </div>
 
       {/* Shared Boards Section */}
@@ -327,6 +458,45 @@ export const FriendProfilePage = ({
           </motion.div>
         )}
       </div>
+
+      {/* Unfriend Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showUnfriendConfirm}
+        onClose={() => setShowUnfriendConfirm(false)}
+        onConfirm={handleUnfriend}
+        title="Unfriend"
+        message={`Are you sure you want to unfriend ${profile.displayName}?`}
+        confirmLabel="Unfriend"
+        cancelLabel="Cancel"
+        isLoading={isActionLoading}
+      />
+
+      {/* Block Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showBlockConfirm}
+        onClose={() => setShowBlockConfirm(false)}
+        onConfirm={handleBlock}
+        title="Block User"
+        message={`Are you sure you want to block ${profile.displayName}? This will also remove them from your friends list.`}
+        confirmLabel="Block"
+        cancelLabel="Cancel"
+        variant="danger"
+        isLoading={isActionLoading}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        targetType="user"
+        targetId={friendId}
+        targetName={profile.displayName}
+        userId={currentUserId}
+        onSubmitted={handleReportSubmitted}
+      />
+
+      {/* Toast Container */}
+      <ToastContainer />
     </div>
   )
 }
