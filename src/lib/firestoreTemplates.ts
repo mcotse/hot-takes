@@ -24,7 +24,7 @@ const createMockTimestamp = (ms: number) => ({
   toMillis: () => ms,
   isEqual: (other: { seconds: number; nanoseconds: number }) =>
     Math.floor(ms / 1000) === other.seconds,
-  toJSON: () => ({ seconds: Math.floor(ms / 1000), nanoseconds: (ms % 1000) * 1_000_000 }),
+  toJSON: () => ({ seconds: Math.floor(ms / 1000), nanoseconds: (ms % 1000) * 1_000_000, type: 'timestamp' }),
 })
 
 // ============ Mock Data for Development ============
