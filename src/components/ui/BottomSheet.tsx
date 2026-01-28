@@ -95,7 +95,8 @@ export const BottomSheet = ({
               }
             }}
             className="
-              absolute bottom-0 left-0 right-0
+              absolute bottom-0 left-1/2 -translate-x-1/2
+              w-full max-w-[500px]
               max-h-[90vh]
               bg-[#fdfbf7]
               border-t-[3px] border-x-[3px] border-[#2d2d2d]
