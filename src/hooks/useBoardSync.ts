@@ -64,9 +64,19 @@ export interface UseBoardSyncReturn {
 export const useBoardSync = (options: UseBoardSyncOptions): UseBoardSyncReturn => {
   const { userId } = options
 
+  const LAST_SYNCED_KEY = 'singles-infernal-rank:last-synced-at'
+
   const [status, setStatus] = useState<SyncStatus>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null)
+  const [lastSyncedAt, setLastSyncedAtState] = useState<number | null>(() => {
+    const stored = localStorage.getItem(LAST_SYNCED_KEY)
+    return stored ? Number(stored) : null
+  })
+
+  const setLastSyncedAt = useCallback((ts: number) => {
+    setLastSyncedAtState(ts)
+    localStorage.setItem(LAST_SYNCED_KEY, String(ts))
+  }, [])
 
   // Convenience flag
   const isSyncing = useMemo(() => status === 'syncing', [status])
@@ -96,7 +106,7 @@ export const useBoardSync = (options: UseBoardSyncOptions): UseBoardSyncReturn =
         return localBoards // Return original on error
       }
     },
-    [userId]
+    [userId, setLastSyncedAt]
   )
 
   /**
@@ -122,7 +132,7 @@ export const useBoardSync = (options: UseBoardSyncOptions): UseBoardSyncReturn =
         setError(message)
       }
     },
-    [userId]
+    [userId, setLastSyncedAt]
   )
 
   /**
