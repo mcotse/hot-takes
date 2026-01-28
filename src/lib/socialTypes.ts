@@ -2,114 +2,13 @@
  * Social Features Data Types
  *
  * Types for Firebase-backed social features:
- * - User profiles and authentication
- * - Friendships and friend requests
  * - Board sharing and visibility
  * - Templates for comparison
  * - Notifications
+ * - Reports
  */
 
 import { Timestamp } from 'firebase/firestore'
-
-// ============ User Profile ============
-
-/**
- * UserProfile - Public profile stored in Firestore
- */
-export interface UserProfile {
-  uid: string                 // Firebase Auth UID
-  username: string            // Unique, user-chosen (3-20 chars, alphanumeric + underscore)
-  displayName: string         // From Google Sign-In
-  avatarUrl: string           // Google profile picture URL
-  isSearchable: boolean       // Can be found via username search
-  blockedUsers: string[]      // UIDs of blocked users
-  createdAt: Timestamp
-  lastActive: Timestamp
-}
-
-/**
- * Create a new UserProfile (for local use before Firestore)
- */
-export const createUserProfile = (
-  uid: string,
-  username: string,
-  displayName: string,
-  avatarUrl: string
-): Omit<UserProfile, 'createdAt' | 'lastActive'> & { createdAt: number; lastActive: number } => ({
-  uid,
-  username,
-  displayName,
-  avatarUrl,
-  isSearchable: true,
-  blockedUsers: [],
-  createdAt: Date.now(),
-  lastActive: Date.now(),
-})
-
-/**
- * Type guard for UserProfile
- */
-export const isUserProfile = (obj: unknown): obj is UserProfile => {
-  if (typeof obj !== 'object' || obj === null) return false
-  const p = obj as Record<string, unknown>
-  return (
-    typeof p.uid === 'string' &&
-    typeof p.username === 'string' &&
-    typeof p.displayName === 'string' &&
-    typeof p.avatarUrl === 'string' &&
-    typeof p.isSearchable === 'boolean' &&
-    Array.isArray(p.blockedUsers)
-  )
-}
-
-// ============ Friendships ============
-
-export type FriendshipStatus = 'pending' | 'active'
-
-/**
- * Friendship - Relationship between two users
- * Stored with sorted UIDs to ensure uniqueness
- */
-export interface Friendship {
-  id: string
-  users: [string, string]     // Sorted UIDs for consistent lookups
-  status: FriendshipStatus
-  requestedBy: string         // UID of user who initiated
-  createdAt: Timestamp
-  acceptedAt?: Timestamp
-}
-
-/**
- * Sort two UIDs consistently for friendship document ID
- */
-export const sortUserIds = (uid1: string, uid2: string): [string, string] => {
-  return uid1 < uid2 ? [uid1, uid2] : [uid2, uid1]
-}
-
-/**
- * Generate friendship document ID from two UIDs
- */
-export const generateFriendshipId = (uid1: string, uid2: string): string => {
-  const [a, b] = sortUserIds(uid1, uid2)
-  return `${a}_${b}`
-}
-
-/**
- * Type guard for Friendship
- */
-export const isFriendship = (obj: unknown): obj is Friendship => {
-  if (typeof obj !== 'object' || obj === null) return false
-  const f = obj as Record<string, unknown>
-  return (
-    typeof f.id === 'string' &&
-    Array.isArray(f.users) &&
-    f.users.length === 2 &&
-    typeof f.users[0] === 'string' &&
-    typeof f.users[1] === 'string' &&
-    (f.status === 'pending' || f.status === 'active') &&
-    typeof f.requestedBy === 'string'
-  )
-}
 
 // ============ Board Sharing ============
 
