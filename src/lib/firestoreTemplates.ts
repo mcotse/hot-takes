@@ -14,7 +14,18 @@
 import type { BoardTemplate, TemplateItem } from './socialTypes'
 import { isBoardTemplate } from './socialTypes'
 import { getFirebaseDb, USE_MOCK_AUTH } from './firebase'
-import { createMockTimestamp } from './mockAuth'
+import { createBoard as createBoardEntity, createCard, type Board, type Card } from './types'
+import { saveBoard, saveCardsForBoard } from './storage'
+/** Simple mock Firestore Timestamp for dev mode */
+const createMockTimestamp = (ms: number) => ({
+  seconds: Math.floor(ms / 1000),
+  nanoseconds: (ms % 1000) * 1_000_000,
+  toDate: () => new Date(ms),
+  toMillis: () => ms,
+  isEqual: (other: { seconds: number; nanoseconds: number }) =>
+    Math.floor(ms / 1000) === other.seconds,
+  toJSON: () => ({ seconds: Math.floor(ms / 1000), nanoseconds: (ms % 1000) * 1_000_000 }),
+})
 
 // ============ Mock Data for Development ============
 
@@ -257,10 +268,6 @@ export const areTitlesMatching = (title1: string, title2: string): boolean => {
   return title1.toLowerCase().trim() === title2.toLowerCase().trim()
 }
 
-// ============ Board Creation from Template ============
-
-import { createBoard as createBoardEntity, createCard, type Board, type Card } from './types'
-import { saveBoard, saveCardsForBoard } from './storage'
 
 /**
  * Result of creating a board from a template
