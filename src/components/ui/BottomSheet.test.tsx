@@ -80,6 +80,15 @@ describe('BottomSheet', () => {
       // Should have top border radius (either border-radius or border-top-*-radius)
       expect(style).toMatch(/border.*radius/i)
     })
+
+    it('has width constraint and centering classes', () => {
+      render(<BottomSheet {...defaultProps} />)
+      const sheet = screen.getByTestId('bottom-sheet')
+      expect(sheet.className).toContain('max-w-[500px]')
+      expect(sheet.className).toContain('w-full')
+      expect(sheet.className).toContain('left-1/2')
+      expect(sheet.className).toContain('-translate-x-1/2')
+    })
   })
 
   describe('accessibility', () => {
