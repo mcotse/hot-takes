@@ -14,7 +14,21 @@
 import type { BoardTemplate, TemplateItem } from './socialTypes'
 import { isBoardTemplate } from './socialTypes'
 import { getFirebaseDb, USE_MOCK_AUTH } from './firebase'
-import { createMockTimestamp } from './mockAuth'
+import { createBoard as createBoardEntity, createCard, type Board, type Card } from './types'
+import { saveBoard, saveCardsForBoard } from './storage'
+import { Timestamp } from 'firebase/firestore'
+/** Simple mock Firestore Timestamp for dev mode */
+const createMockTimestamp = (ms: number): Timestamp =>
+  ({
+    seconds: Math.floor(ms / 1000),
+    nanoseconds: (ms % 1000) * 1_000_000,
+    toDate: () => new Date(ms),
+    toMillis: () => ms,
+    isEqual: (other: { seconds: number; nanoseconds: number }) =>
+      Math.floor(ms / 1000) === other.seconds,
+    toJSON: () => ({ seconds: Math.floor(ms / 1000), nanoseconds: (ms % 1000) * 1_000_000, type: 'timestamp' }),
+    valueOf: () => `Timestamp(seconds=${Math.floor(ms / 1000)}, nanoseconds=${(ms % 1000) * 1_000_000})`,
+  }) as unknown as Timestamp
 
 // ============ Mock Data for Development ============
 
@@ -86,14 +100,13 @@ export const getActiveTemplates = async (): Promise<BoardTemplate[]> => {
   }
 
   const db = await getFirebaseDb()
-  const { collection, query, where, getDocs, orderBy } = await import(
+  const { collection, query, where, getDocs } = await import(
     'firebase/firestore'
   )
 
   const q = query(
     collection(db, 'templates'),
-    where('isActive', '==', true),
-    orderBy('name')
+    where('isActive', '==', true)
   )
   const snapshot = await getDocs(q)
 
@@ -105,7 +118,7 @@ export const getActiveTemplates = async (): Promise<BoardTemplate[]> => {
     }
   })
 
-  return templates
+  return templates.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
@@ -145,15 +158,14 @@ export const getTemplatesByCategory = async (
   }
 
   const db = await getFirebaseDb()
-  const { collection, query, where, getDocs, orderBy } = await import(
+  const { collection, query, where, getDocs } = await import(
     'firebase/firestore'
   )
 
   const q = query(
     collection(db, 'templates'),
     where('isActive', '==', true),
-    where('category', '==', category),
-    orderBy('name')
+    where('category', '==', category)
   )
   const snapshot = await getDocs(q)
 
@@ -165,7 +177,7 @@ export const getTemplatesByCategory = async (
     }
   })
 
-  return templates
+  return templates.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
@@ -259,10 +271,6 @@ export const areTitlesMatching = (title1: string, title2: string): boolean => {
   return title1.toLowerCase().trim() === title2.toLowerCase().trim()
 }
 
-// ============ Board Creation from Template ============
-
-import { createBoard as createBoardEntity, createCard, type Board, type Card } from './types'
-import { saveBoard, saveCardsForBoard } from './storage'
 
 /**
  * Result of creating a board from a template
