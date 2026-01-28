@@ -1,19 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Agentation } from 'agentation'
 import { TabBar, type Tab } from './components/ui/TabBar'
 import { BoardsPage } from './pages/BoardsPage'
 import { BoardDetailPage } from './pages/BoardDetailPage'
-import { FriendsPage } from './pages/FriendsPage'
+import { SpacesHomePage } from './pages/SpacesHomePage'
+import { SpaceDetailPage } from './pages/SpaceDetailPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { getBoards } from './lib/storage'
 import { loadSinglesInfernoS5 } from './data/singlesInfernoS5'
 import { wobbly } from './styles/wobbly'
+import { useSpaces } from './hooks/useSpaces'
 
 const tabs: Tab[] = [
+  { id: 'home', label: 'Home', icon: '🏠' },
   { id: 'boards', label: 'Boards', icon: '📋' },
-  { id: 'friends', label: 'Friends', icon: '👥' },
   { id: 'history', label: 'History', icon: '📊' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ]
@@ -74,20 +76,47 @@ const FirstLaunchLoader = ({ progress }: { progress: string }) => (
 /**
  * Main App shell with TabBar navigation
  *
- * Features:
- * - Bottom TabBar for navigation
- * - Paper texture background
- * - Safe area handling for iOS
- * - Switching between Boards and Settings views
- * - Board detail view with back navigation
- * - Auto-loads sample data on first launch
+ * Navigation:
+ * - Home tab → Spaces list → Space detail (boards within space)
+ * - Boards tab → Local boards
+ * - History tab
+ * - Settings tab
  */
 export const App = () => {
-  const [activeTab, setActiveTab] = useState('boards')
+  const [activeTab, setActiveTab] = useState('home')
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
+  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null)
   const [isFirstLaunch, setIsFirstLaunch] = useState(false)
   const [loadProgress, setLoadProgress] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
+
+  // Spaces hook
+  const {
+    spaces,
+    isLoading: spacesLoading,
+    error: spacesError,
+    canCreateSpace,
+    createSpace,
+    joinSpace,
+    clearError: clearSpacesError,
+  } = useSpaces()
+
+  // Detect ?joinCode= from URL
+  const prefillJoinCode = useMemo(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('joinCode') ?? undefined
+  }, [])
+
+  // Auto-open join modal if joinCode present
+  useEffect(() => {
+    if (prefillJoinCode) {
+      setActiveTab('home')
+      // Clean URL without reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete('joinCode')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [prefillJoinCode])
 
   // Check for first launch and auto-load sample data
   useEffect(() => {
@@ -105,15 +134,12 @@ export const App = () => {
         }).then(() => {
           localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
           setIsFirstLaunch(false)
-          // Force BoardsPage to remount and re-read data
           setRefreshKey(k => k + 1)
         }).catch(() => {
-          // If loading fails, still mark as initialized to avoid infinite loop
           localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
           setIsFirstLaunch(false)
         })
       } else {
-        // Boards exist, mark as initialized
         localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
       }
     }
@@ -127,7 +153,55 @@ export const App = () => {
     setSelectedBoardId(null)
   }
 
-  // Determine what to show in the boards tab
+  const handleSelectSpace = (spaceId: string) => {
+    setSelectedSpaceId(spaceId)
+  }
+
+  const handleBackToSpaces = () => {
+    setSelectedSpaceId(null)
+  }
+
+  const handleCreateSpace = async (spaceName: string, displayName: string) => {
+    const result = await createSpace(spaceName, displayName)
+    if (result) {
+      setSelectedSpaceId(result.spaceId)
+    }
+  }
+
+  const handleJoinSpace = async (joinCode: string, displayName: string) => {
+    const result = await joinSpace(joinCode, displayName)
+    if (result) {
+      setSelectedSpaceId(result.spaceId)
+    }
+  }
+
+  // Render home tab content
+  const renderHomeContent = () => {
+    if (selectedSpaceId) {
+      return (
+        <SpaceDetailPage
+          spaceId={selectedSpaceId}
+          onBack={handleBackToSpaces}
+          onBoardSelect={handleBoardSelect}
+        />
+      )
+    }
+    return (
+      <SpacesHomePage
+        spaces={spaces}
+        isLoading={spacesLoading}
+        error={spacesError}
+        canCreateSpace={canCreateSpace}
+        onCreateSpace={handleCreateSpace}
+        onJoinSpace={handleJoinSpace}
+        onSelectSpace={handleSelectSpace}
+        prefillJoinCode={prefillJoinCode}
+        clearError={clearSpacesError}
+      />
+    )
+  }
+
+  // Render boards tab content
   const renderBoardsContent = () => {
     if (selectedBoardId) {
       return (
@@ -149,8 +223,8 @@ export const App = () => {
       {/* Centered container for mobile-first design on desktop */}
       <div className="flex-1 w-full max-w-[500px] mx-auto">
         <main className="pb-20">
+          {activeTab === 'home' && renderHomeContent()}
           {activeTab === 'boards' && renderBoardsContent()}
-          {activeTab === 'friends' && <FriendsPage />}
           {activeTab === 'history' && <HistoryPage />}
           {activeTab === 'settings' && <SettingsPage />}
         </main>
@@ -161,9 +235,12 @@ export const App = () => {
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab)
-          // Clear board selection when switching tabs
-          if (tab !== 'boards') {
+          // Clear selections when switching tabs
+          if (tab !== 'boards' && tab !== 'home') {
             setSelectedBoardId(null)
+          }
+          if (tab !== 'home') {
+            setSelectedSpaceId(null)
           }
         }}
       />

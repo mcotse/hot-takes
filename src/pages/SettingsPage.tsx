@@ -6,7 +6,8 @@ import { springConfig } from '../styles/tokens'
 import { importData, exportData, clearAllData } from '../lib/storage'
 import { loadSinglesInfernoS5, loadSinglesInfernoS5Snapshots } from '../data/singlesInfernoS5'
 import { clearAllImages } from '../lib/db'
-import { useAuth } from '../hooks/useAuth'
+import { getDeviceToken } from '../lib/deviceToken'
+import { isAllowlisted } from '../lib/allowlist'
 
 type FeedbackType = 'success' | 'error' | 'warning' | null
 
@@ -198,30 +199,12 @@ const ConfirmModal = ({
 export const SettingsPage = () => {
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
-  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loadProgress, setLoadProgress] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Auth state
-  const {
-    user,
-    profile,
-    isLoading: isAuthLoading,
-    signOut,
-    signIn,
-  } = useAuth()
-
-  // Handle sign out
-  const handleSignOut = async () => {
-    setShowSignOutConfirm(false)
-    try {
-      await signOut()
-      showFeedback('success', 'Signed out successfully')
-    } catch {
-      showFeedback('error', 'Failed to sign out')
-    }
-  }
+  const deviceToken = getDeviceToken()
+  const allowlisted = isAllowlisted(deviceToken)
 
   const showFeedback = (type: FeedbackType, message: string) => {
     setFeedback({ type, message })
@@ -377,89 +360,36 @@ export const SettingsPage = () => {
 
       {/* Content */}
       <div className="p-4">
-        {/* Account Section */}
+        {/* Device Section */}
         <SettingsSection
-          icon="👤"
-          title="Account"
-          description={user ? 'Manage your account and social features.' : 'Sign in to share rankings and connect with friends.'}
+          icon="📱"
+          title="Device"
+          description="Your device identity for spaces and sharing."
         >
-          {user && profile ? (
-            // Signed in with profile
-            <div>
-              {/* Profile info */}
-              <div className="flex items-center gap-4 mb-4">
-                {profile.avatarUrl ? (
-                  <img
-                    src={profile.avatarUrl}
-                    alt={profile.displayName}
-                    className="w-14 h-14 border-[3px] border-[#2d2d2d] object-cover"
-                    style={{ borderRadius: wobbly.circle }}
-                  />
-                ) : (
-                  <div
-                    className="w-14 h-14 bg-[#e5e0d8] border-[3px] border-[#2d2d2d] flex items-center justify-center text-2xl"
-                    style={{ borderRadius: wobbly.circle }}
-                  >
-                    {profile.displayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <p
-                    className="text-[#2d2d2d] text-lg"
-                    style={{ fontFamily: "'Kalam', cursive", fontWeight: 700 }}
-                  >
-                    {profile.displayName}
-                  </p>
-                  <p
-                    className="text-[#2d5da1] text-sm"
-                    style={{ fontFamily: "'Patrick Hand', cursive" }}
-                  >
-                    @{profile.username}
-                  </p>
-                </div>
-              </div>
-
-              {/* Sign out button */}
-              <Button
-                onClick={() => setShowSignOutConfirm(true)}
-                variant="secondary"
-                size="sm"
-                className="w-full"
-                disabled={isAuthLoading}
-              >
-                {isAuthLoading ? 'Signing out...' : '🚪 Sign Out'}
-              </Button>
-            </div>
-          ) : user ? (
-            // Signed in but no profile (shouldn't happen normally)
-            <div className="text-center py-4">
+          <div
+            className="p-3 bg-[#f5f5f5] border-2 border-dashed border-[#e5e0d8]"
+            style={{ borderRadius: wobbly.sm }}
+          >
+            <p
+              className="text-[#9a958d] text-xs mb-1"
+              style={{ fontFamily: "'Patrick Hand', cursive" }}
+            >
+              Device Token
+            </p>
+            <p
+              className="text-[#2d2d2d] text-sm font-mono break-all"
+            >
+              {deviceToken}
+            </p>
+            {allowlisted && (
               <p
-                className="text-[#9a958d]"
+                className="text-[#22c55e] text-xs mt-2"
                 style={{ fontFamily: "'Patrick Hand', cursive" }}
               >
-                Setting up your profile...
+                Allowlisted (no limits)
               </p>
-            </div>
-          ) : (
-            // Not signed in
-            <div>
-              <p
-                className="text-[#2d2d2d]/70 mb-4"
-                style={{ fontFamily: "'Patrick Hand', cursive" }}
-              >
-                Sign in to unlock social features like sharing rankings and connecting with friends.
-              </p>
-              <Button
-                onClick={signIn}
-                variant="primary"
-                size="sm"
-                className="w-full"
-                disabled={isAuthLoading}
-              >
-                {isAuthLoading ? 'Signing in...' : '🔑 Sign in with Google'}
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </SettingsSection>
 
         {/* Sample Data Section */}
@@ -604,80 +534,6 @@ export const SettingsPage = () => {
         )}
       </AnimatePresence>
 
-      {/* Sign Out Confirmation Modal */}
-      <AnimatePresence>
-        {showSignOutConfirm && (
-          <SignOutModal
-            isOpen={showSignOutConfirm}
-            onConfirm={handleSignOut}
-            onCancel={() => setShowSignOutConfirm(false)}
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-/**
- * Sign out confirmation modal (less scary than danger zone)
- */
-const SignOutModal = ({
-  isOpen,
-  onConfirm,
-  onCancel,
-}: {
-  isOpen: boolean
-  onConfirm: () => void
-  onCancel: () => void
-}) => {
-  if (!isOpen) return null
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/40"
-        onClick={onCancel}
-      />
-
-      {/* Modal */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        transition={springConfig.bouncy}
-        className="relative bg-[#fdfbf7] border-[3px] border-[#2d2d2d] p-6 w-full max-w-sm"
-        style={{
-          borderRadius: wobbly.lg,
-          boxShadow: '8px 8px 0px 0px #2d2d2d',
-        }}
-      >
-        <h2
-          className="text-2xl text-[#2d2d2d] mb-3"
-          style={{ fontFamily: "'Kalam', cursive", fontWeight: 700 }}
-        >
-          Sign Out?
-        </h2>
-
-        <p
-          className="text-[#2d2d2d] mb-6"
-          style={{ fontFamily: "'Patrick Hand', cursive", fontSize: '1.1rem' }}
-        >
-          Your local data will remain on this device. You can sign back in anytime.
-        </p>
-
-        <div className="flex gap-3">
-          <Button variant="secondary" onClick={onCancel} className="flex-1">
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={onConfirm} className="flex-1">
-            Sign Out
-          </Button>
-        </div>
-      </motion.div>
     </div>
   )
 }
