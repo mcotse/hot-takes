@@ -126,10 +126,16 @@ const castMembers: CastMember[] = [
 ]
 
 /**
+ * Sleep for a given number of milliseconds
+ */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
  * Fetch an image from URL and return as Blob
  * Uses a CORS proxy to bypass cross-origin restrictions
+ * Includes retry logic with exponential backoff
  */
-const fetchImageAsBlob = async (url: string): Promise<Blob> => {
+const fetchImageAsBlob = async (url: string, maxRetries = 3): Promise<Blob> => {
   // Try multiple CORS proxies in case one fails
   const corsProxies = [
     (u: string) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
@@ -139,20 +145,92 @@ const fetchImageAsBlob = async (url: string): Promise<Blob> => {
   let lastError: Error | null = null
 
   for (const proxyFn of corsProxies) {
-    try {
-      const proxyUrl = proxyFn(url)
-      const response = await fetch(proxyUrl)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status}`)
+    // Retry each proxy with exponential backoff
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const proxyUrl = proxyFn(url)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+
+        const response = await fetch(proxyUrl, { signal: controller.signal })
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.status}`)
+        }
+        return response.blob()
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error')
+        // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+        if (attempt < maxRetries - 1) {
+          await sleep(1000 * Math.pow(2, attempt))
+        }
       }
-      return response.blob()
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Unknown error')
-      // Try next proxy
     }
+    // Try next proxy after all retries failed for current proxy
   }
 
   throw lastError || new Error('All CORS proxies failed')
+}
+
+/**
+ * Process a single cast member image and save to IndexedDB
+ * Returns the image key on success, null on failure
+ */
+const processCastMemberImage = async (
+  member: CastMember,
+  now: number
+): Promise<{ member: CastMember; imageKey: string | null; error?: string }> => {
+  try {
+    const imageBlob = await fetchImageAsBlob(member.imageUrl)
+    const processed = await processImage(imageBlob)
+    const imageKey = `image-${member.id}`
+
+    await saveImage({
+      key: imageKey,
+      blob: processed.fullBlob,
+      thumbnail: processed.thumbnailBlob,
+      mimeType: processed.mimeType,
+      createdAt: now,
+    })
+
+    return { member, imageKey }
+  } catch (error) {
+    return {
+      member,
+      imageKey: null,
+      error: `Failed to load image for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    }
+  }
+}
+
+/**
+ * Run promises with limited concurrency
+ */
+const runWithConcurrency = async <T>(
+  tasks: (() => Promise<T>)[],
+  concurrency: number,
+  onComplete?: (result: T, index: number) => void
+): Promise<T[]> => {
+  const results: T[] = new Array(tasks.length)
+  let currentIndex = 0
+
+  const runNext = async (): Promise<void> => {
+    while (currentIndex < tasks.length) {
+      const index = currentIndex++
+      const result = await tasks[index]()
+      results[index] = result
+      onComplete?.(result, index)
+    }
+  }
+
+  // Start up to 'concurrency' workers
+  const workers = Array(Math.min(concurrency, tasks.length))
+    .fill(null)
+    .map(() => runNext())
+
+  await Promise.all(workers)
+  return results
 }
 
 /**
@@ -255,30 +333,38 @@ export const loadSinglesInfernoS5 = async (
   saveBoard(menBoard)
   boardsCreated++
 
-  // Step 3: Create cards for women
+  // Step 3: Load all cast member images in PARALLEL (much faster!)
+  // Using concurrency of 4 to avoid overwhelming the CORS proxies
+  const CONCURRENCY = 4
+  let completedCount = 0
+
+  const allTasks = castMembers.map((member) => () => processCastMemberImage(member, now))
+
+  const results = await runWithConcurrency(
+    allTasks,
+    CONCURRENCY,
+    (result) => {
+      completedCount++
+      onProgress?.(completedCount + 1, totalSteps, `Loaded ${result.member.name}...`)
+    }
+  )
+
+  // Build a map of member ID to image key for card creation
+  const imageKeyMap = new Map<string, string | null>()
+  for (const result of results) {
+    imageKeyMap.set(result.member.id, result.imageKey)
+    if (result.imageKey) {
+      imagesLoaded++
+    }
+    if (result.error) {
+      errors.push(result.error)
+    }
+  }
+
+  // Step 4: Create cards for women (fast, no I/O)
   for (let i = 0; i < women.length; i++) {
     const member = women[i]
-    onProgress?.(i + 2, totalSteps, `Loading ${member.name}...`)
-
-    let imageKey: string | null = null
-
-    try {
-      const imageBlob = await fetchImageAsBlob(member.imageUrl)
-      const processed = await processImage(imageBlob)
-
-      imageKey = `image-${member.id}`
-
-      await saveImage({
-        key: imageKey,
-        blob: processed.fullBlob,
-        thumbnail: processed.thumbnailBlob,
-        mimeType: processed.mimeType,
-        createdAt: now,
-      })
-      imagesLoaded++
-    } catch (error) {
-      errors.push(`Failed to load image for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    const imageKey = imageKeyMap.get(member.id) || null
 
     const card: Card = {
       id: member.id,
@@ -298,30 +384,10 @@ export const loadSinglesInfernoS5 = async (
     cardsCreated++
   }
 
-  // Step 4: Create cards for men
+  // Step 5: Create cards for men (fast, no I/O)
   for (let i = 0; i < men.length; i++) {
     const member = men[i]
-    onProgress?.(women.length + i + 2, totalSteps, `Loading ${member.name}...`)
-
-    let imageKey: string | null = null
-
-    try {
-      const imageBlob = await fetchImageAsBlob(member.imageUrl)
-      const processed = await processImage(imageBlob)
-
-      imageKey = `image-${member.id}`
-
-      await saveImage({
-        key: imageKey,
-        blob: processed.fullBlob,
-        thumbnail: processed.thumbnailBlob,
-        mimeType: processed.mimeType,
-        createdAt: now,
-      })
-      imagesLoaded++
-    } catch (error) {
-      errors.push(`Failed to load image for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    const imageKey = imageKeyMap.get(member.id) || null
 
     const card: Card = {
       id: member.id,

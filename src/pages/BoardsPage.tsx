@@ -159,22 +159,29 @@ export const BoardsPage = ({ onBoardSelect }: BoardsPageProps) => {
     return counts
   }, [boards])
 
-  // Load cover image URLs for boards with cover images
+  // Load cover image URLs for boards with cover images - PARALLEL loading for speed
   useEffect(() => {
     let cancelled = false
 
     const loadCoverImages = async () => {
-      const urls: Record<string, string> = {}
-      for (const board of boards) {
-        if (cancelled) return
-        if (board.coverImage) {
-          const url = await getImageUrl(board.coverImage)
-          if (url) {
-            urls[board.id] = url
+      // Load all cover images in parallel for much faster loading
+      const boardsWithCovers = boards.filter(board => board.coverImage)
+
+      const results = await Promise.all(
+        boardsWithCovers.map(async (board) => {
+          if (cancelled) return null
+          const url = await getImageUrl(board.coverImage!)
+          return url ? { boardId: board.id, url } : null
+        })
+      )
+
+      if (!cancelled) {
+        const urls: Record<string, string> = {}
+        for (const result of results) {
+          if (result) {
+            urls[result.boardId] = result.url
           }
         }
-      }
-      if (!cancelled) {
         setCoverImageUrls(urls)
       }
     }

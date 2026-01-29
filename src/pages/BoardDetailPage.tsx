@@ -303,25 +303,31 @@ export const BoardDetailPage = ({
     onBack()
   }, [boardId, softDeleteBoard, onBack])
 
-  // Load thumbnail URLs for cards with images
+  // Load thumbnail URLs for cards with images - PARALLEL loading for speed
   useEffect(() => {
     let cancelled = false
     const loadedUrls: string[] = []
 
     const loadThumbnails = async () => {
-      const urls: Record<string, string> = {}
-      for (const card of cards) {
-        if (cancelled) return
-        if (card.thumbnailKey) {
-          // Use getThumbnailUrl to get the optimized thumbnail blob
-          const url = await getThumbnailUrl(card.thumbnailKey)
-          if (url) {
-            urls[card.id] = url
-            loadedUrls.push(url)
+      // Load all thumbnails in parallel for much faster loading
+      const cardsWithThumbnails = cards.filter(card => card.thumbnailKey)
+
+      const results = await Promise.all(
+        cardsWithThumbnails.map(async (card) => {
+          if (cancelled) return null
+          const url = await getThumbnailUrl(card.thumbnailKey!)
+          return url ? { cardId: card.id, url } : null
+        })
+      )
+
+      if (!cancelled) {
+        const urls: Record<string, string> = {}
+        for (const result of results) {
+          if (result) {
+            urls[result.cardId] = result.url
+            loadedUrls.push(result.url)
           }
         }
-      }
-      if (!cancelled) {
         setThumbnailUrls(urls)
       }
     }
