@@ -9,7 +9,7 @@ import { SpaceDetailPage } from './pages/SpaceDetailPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { getBoards } from './lib/storage'
-import { loadSinglesInfernoS5 } from './data/singlesInfernoS5'
+import { loadSinglesInfernoS5, upgradeSinglesInfernoS5Images } from './data/singlesInfernoS5'
 import { wobbly } from './styles/wobbly'
 import { useSpaces } from './hooks/useSpaces'
 
@@ -21,6 +21,7 @@ const tabs: Tab[] = [
 ]
 
 const FIRST_LAUNCH_KEY = 'singles-infernal-rank-initialized'
+const IMAGES_UPGRADED_KEY = 'singles-infernal-rank-images-upgraded'
 
 /**
  * Loading screen shown during first-time data load
@@ -165,12 +166,36 @@ export const App = () => {
           localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
           setIsFirstLaunch(false)
           setRefreshKey(k => k + 1)
+
+          // Upgrade placeholder avatars to real images in the background
+          upgradeSinglesInfernoS5Images().then((result) => {
+            if (result.imagesUpgraded > 0) {
+              localStorage.setItem(IMAGES_UPGRADED_KEY, 'true')
+              // Trigger a refresh to show the new images
+              setRefreshKey(k => k + 1)
+            }
+          }).catch(() => {
+            // Silent fail - placeholders still work
+          })
         }).catch(() => {
           localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
           setIsFirstLaunch(false)
         })
       } else {
         localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
+
+        // For existing users: upgrade placeholder images to real images if not done yet
+        const hasUpgradedImages = localStorage.getItem(IMAGES_UPGRADED_KEY)
+        if (!hasUpgradedImages) {
+          upgradeSinglesInfernoS5Images().then((result) => {
+            if (result.imagesUpgraded > 0) {
+              localStorage.setItem(IMAGES_UPGRADED_KEY, 'true')
+              setRefreshKey(k => k + 1)
+            }
+          }).catch(() => {
+            // Silent fail
+          })
+        }
       }
     }
   }, [])

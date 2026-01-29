@@ -466,6 +466,151 @@ export const getSinglesInfernoS5Json = (): string => {
 }
 
 /**
+ * Fetch an image from URL and convert to Blob
+ */
+const fetchImageAsBlob = async (url: string): Promise<Blob> => {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status}`)
+  }
+  return response.blob()
+}
+
+/**
+ * Upgrade result
+ */
+export interface UpgradeImagesResult {
+  success: boolean
+  imagesUpgraded: number
+  errors: string[]
+}
+
+/**
+ * Upgrade placeholder avatars to real images from URLs
+ *
+ * This function fetches the actual cast member photos and replaces
+ * the placeholder avatars. Call this after initial load to get real photos.
+ */
+export const upgradeSinglesInfernoS5Images = async (
+  onProgress?: LoadProgressCallback
+): Promise<UpgradeImagesResult> => {
+  const errors: string[] = []
+  let imagesUpgraded = 0
+  const now = Date.now()
+
+  // Check if boards exist
+  const womenBoard = getBoard(WOMEN_BOARD_ID)
+  const menBoard = getBoard(MEN_BOARD_ID)
+
+  if (!womenBoard && !menBoard) {
+    return {
+      success: false,
+      imagesUpgraded: 0,
+      errors: ['Singles Inferno S5 boards not found. Load the seed data first.'],
+    }
+  }
+
+  const totalSteps = castMembers.length
+
+  for (let i = 0; i < castMembers.length; i++) {
+    const member = castMembers[i]
+    onProgress?.(i, totalSteps, `Fetching ${member.name}...`)
+
+    try {
+      // Fetch the real image
+      const imageBlob = await fetchImageAsBlob(member.imageUrl)
+
+      // Create a thumbnail (resize to 200px)
+      const thumbnailBlob = await createThumbnailFromBlob(imageBlob, 200)
+
+      const imageKey = `image-${member.id}`
+
+      // Save to IndexedDB (overwrites placeholder)
+      await saveImage({
+        key: imageKey,
+        blob: imageBlob,
+        thumbnail: thumbnailBlob,
+        mimeType: imageBlob.type || 'image/jpeg',
+        createdAt: now,
+      })
+
+      imagesUpgraded++
+    } catch (error) {
+      errors.push(`Failed to fetch ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  onProgress?.(totalSteps, totalSteps, 'Complete!')
+
+  return {
+    success: errors.length === 0,
+    imagesUpgraded,
+    errors,
+  }
+}
+
+/**
+ * Create a thumbnail from an image blob
+ */
+const createThumbnailFromBlob = async (blob: Blob, maxSize: number): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(blob)
+
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'))
+        return
+      }
+
+      // Calculate dimensions maintaining aspect ratio
+      let width = img.width
+      let height = img.height
+
+      if (width > height) {
+        if (width > maxSize) {
+          height = (height * maxSize) / width
+          width = maxSize
+        }
+      } else {
+        if (height > maxSize) {
+          width = (width * maxSize) / height
+          height = maxSize
+        }
+      }
+
+      canvas.width = width
+      canvas.height = height
+      ctx.drawImage(img, 0, 0, width, height)
+
+      canvas.toBlob(
+        (thumbnailBlob) => {
+          if (thumbnailBlob) {
+            resolve(thumbnailBlob)
+          } else {
+            reject(new Error('Failed to create thumbnail blob'))
+          }
+        },
+        'image/jpeg',
+        0.8
+      )
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Failed to load image'))
+    }
+
+    img.src = url
+  })
+}
+
+/**
  * Snapshot load result
  */
 export interface LoadSnapshotsResult {

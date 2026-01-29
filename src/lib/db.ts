@@ -20,6 +20,12 @@ const openDB = (): Promise<IDBDatabase> => {
   if (dbPromise) return dbPromise
 
   dbPromise = new Promise((resolve, reject) => {
+    // Check if IndexedDB is available (not available in some test environments)
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is not available'))
+      return
+    }
+
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
     request.onerror = () => {
