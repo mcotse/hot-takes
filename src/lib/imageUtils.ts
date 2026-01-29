@@ -7,8 +7,9 @@
 
 /**
  * Maximum dimensions for full-size images
+ * Reduced from 800 to 600 for faster loading and smaller storage
  */
-const MAX_FULL_SIZE = 800
+const MAX_FULL_SIZE = 600
 
 /**
  * Thumbnail dimensions
@@ -17,13 +18,15 @@ const THUMBNAIL_SIZE = 200
 
 /**
  * Target quality for JPEG compression (0-1)
+ * Reduced from 0.8 to 0.65 for smaller file sizes
  */
-const JPEG_QUALITY = 0.8
+const JPEG_QUALITY = 0.65
 
 /**
  * Target quality for thumbnails (more aggressive compression)
+ * Reduced from 0.6 to 0.5 for smaller file sizes
  */
-const THUMBNAIL_QUALITY = 0.6
+const THUMBNAIL_QUALITY = 0.5
 
 /**
  * Result of processing an image

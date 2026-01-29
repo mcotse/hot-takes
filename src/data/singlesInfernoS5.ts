@@ -8,18 +8,12 @@
 import type { Board, Card, Snapshot, RankingEntry } from '../lib/types'
 import { saveBoard, saveCard, getBoard, getCardsByBoard, saveSnapshot, getSnapshotsByBoard } from '../lib/storage'
 import { saveImage } from '../lib/db'
-import { processImage } from '../lib/imageUtils'
 
 const WOMEN_BOARD_ID = 'singles-inferno-s5-women'
 const MEN_BOARD_ID = 'singles-inferno-s5-men'
 
 /**
- * Singles Inferno S5 poster image URL
- */
-const POSTER_URL = 'https://www.allkpop.com/upload/2026/01/content/061028/1767713284-jyzbnb2rexelgnvuv7sqlu1zjaf7hovkuz5kn7q1g0p2nshm9rkccwiwowdacgbu2zlu53crwanfuggfbc0ruw.jpg'
-
-/**
- * Cast member data with image URLs
+ * Cast member data (image URLs kept for reference but placeholders are generated locally)
  */
 interface CastMember {
   id: string
@@ -126,33 +120,115 @@ const castMembers: CastMember[] = [
 ]
 
 /**
- * Fetch an image from URL and return as Blob
- * Uses a CORS proxy to bypass cross-origin restrictions
+ * Color palette for placeholder avatars (soft, pastel colors)
  */
-const fetchImageAsBlob = async (url: string): Promise<Blob> => {
-  // Try multiple CORS proxies in case one fails
-  const corsProxies = [
-    (u: string) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  ]
+const AVATAR_COLORS = [
+  '#FF6B6B', // coral
+  '#4ECDC4', // teal
+  '#45B7D1', // sky blue
+  '#96CEB4', // sage
+  '#FFEAA7', // butter
+  '#DDA0DD', // plum
+  '#98D8C8', // mint
+  '#F7DC6F', // gold
+  '#BB8FCE', // lavender
+  '#85C1E9', // light blue
+  '#F8B500', // amber
+  '#7DCEA0', // green
+  '#F1948A', // rose
+]
 
-  let lastError: Error | null = null
-
-  for (const proxyFn of corsProxies) {
-    try {
-      const proxyUrl = proxyFn(url)
-      const response = await fetch(proxyUrl)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status}`)
-      }
-      return response.blob()
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Unknown error')
-      // Try next proxy
-    }
+/**
+ * Get initials from a name (e.g., "Park Hee Sun" -> "PH")
+ */
+const getInitials = (name: string): string => {
+  const parts = name.split(' ').filter(p => p.length > 0)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase()
   }
+  return name.substring(0, 2).toUpperCase()
+}
 
-  throw lastError || new Error('All CORS proxies failed')
+/**
+ * Generate a deterministic color based on name
+ */
+const getColorForName = (name: string): string => {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+/**
+ * Generate a placeholder avatar image as a Blob
+ * Creates a colored circle with initials - instant, no network required
+ */
+const generatePlaceholderAvatar = (name: string, size: number = 200): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      reject(new Error('Failed to get canvas context'))
+      return
+    }
+
+    const color = getColorForName(name)
+    const initials = getInitials(name)
+
+    // Draw background circle
+    ctx.fillStyle = color
+    ctx.beginPath()
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Draw initials
+    ctx.fillStyle = '#FFFFFF'
+    ctx.font = `bold ${size * 0.4}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(initials, size / 2, size / 2)
+
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob)
+        } else {
+          reject(new Error('Failed to create blob'))
+        }
+      },
+      'image/jpeg',
+      0.8
+    )
+  })
+}
+
+/**
+ * Generate placeholder images for a cast member and save to IndexedDB
+ * This is instant - no network required
+ */
+const generateCastMemberPlaceholder = async (
+  member: CastMember,
+  now: number
+): Promise<{ member: CastMember; imageKey: string }> => {
+  const imageKey = `image-${member.id}`
+
+  // Generate full-size and thumbnail placeholders
+  const fullBlob = await generatePlaceholderAvatar(member.name, 400)
+  const thumbnailBlob = await generatePlaceholderAvatar(member.name, 200)
+
+  await saveImage({
+    key: imageKey,
+    blob: fullBlob,
+    thumbnail: thumbnailBlob,
+    mimeType: 'image/jpeg',
+    createdAt: now,
+  })
+
+  return { member, imageKey }
 }
 
 /**
@@ -208,25 +284,25 @@ export const loadSinglesInfernoS5 = async (
     }
   }
 
-  // Step 1: Create Women's board and fetch poster image
-  onProgress?.(0, totalSteps, 'Loading poster...')
+  // Step 1: Generate poster placeholder (instant, no network)
+  onProgress?.(0, totalSteps, 'Creating boards...')
 
   let coverImageKey: string | null = null
   try {
-    const posterBlob = await fetchImageAsBlob(POSTER_URL)
-    const processed = await processImage(posterBlob)
-
     coverImageKey = `poster-${WOMEN_BOARD_ID}`
+    const posterFull = await generatePlaceholderAvatar('Singles Inferno S5', 400)
+    const posterThumb = await generatePlaceholderAvatar('Singles Inferno S5', 200)
+
     await saveImage({
       key: coverImageKey,
-      blob: processed.fullBlob,
-      thumbnail: processed.thumbnailBlob,
-      mimeType: processed.mimeType,
+      blob: posterFull,
+      thumbnail: posterThumb,
+      mimeType: 'image/jpeg',
       createdAt: now,
     })
     imagesLoaded++
   } catch (error) {
-    errors.push(`Failed to load poster: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    errors.push(`Failed to create poster: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 
   // Create Women's board
@@ -255,30 +331,26 @@ export const loadSinglesInfernoS5 = async (
   saveBoard(menBoard)
   boardsCreated++
 
-  // Step 3: Create cards for women
-  for (let i = 0; i < women.length; i++) {
-    const member = women[i]
-    onProgress?.(i + 2, totalSteps, `Loading ${member.name}...`)
+  // Step 3: Generate placeholder images for all cast members (instant, no network!)
+  const imageKeyMap = new Map<string, string>()
 
-    let imageKey: string | null = null
+  for (let i = 0; i < castMembers.length; i++) {
+    const member = castMembers[i]
+    onProgress?.(i + 2, totalSteps, `Creating ${member.name}...`)
 
     try {
-      const imageBlob = await fetchImageAsBlob(member.imageUrl)
-      const processed = await processImage(imageBlob)
-
-      imageKey = `image-${member.id}`
-
-      await saveImage({
-        key: imageKey,
-        blob: processed.fullBlob,
-        thumbnail: processed.thumbnailBlob,
-        mimeType: processed.mimeType,
-        createdAt: now,
-      })
+      const result = await generateCastMemberPlaceholder(member, now)
+      imageKeyMap.set(member.id, result.imageKey)
       imagesLoaded++
     } catch (error) {
-      errors.push(`Failed to load image for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      errors.push(`Failed to create placeholder for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+  }
+
+  // Step 4: Create cards for women (fast, no I/O)
+  for (let i = 0; i < women.length; i++) {
+    const member = women[i]
+    const imageKey = imageKeyMap.get(member.id) ?? null
 
     const card: Card = {
       id: member.id,
@@ -298,30 +370,10 @@ export const loadSinglesInfernoS5 = async (
     cardsCreated++
   }
 
-  // Step 4: Create cards for men
+  // Step 5: Create cards for men (fast, no I/O)
   for (let i = 0; i < men.length; i++) {
     const member = men[i]
-    onProgress?.(women.length + i + 2, totalSteps, `Loading ${member.name}...`)
-
-    let imageKey: string | null = null
-
-    try {
-      const imageBlob = await fetchImageAsBlob(member.imageUrl)
-      const processed = await processImage(imageBlob)
-
-      imageKey = `image-${member.id}`
-
-      await saveImage({
-        key: imageKey,
-        blob: processed.fullBlob,
-        thumbnail: processed.thumbnailBlob,
-        mimeType: processed.mimeType,
-        createdAt: now,
-      })
-      imagesLoaded++
-    } catch (error) {
-      errors.push(`Failed to load image for ${member.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    const imageKey = imageKeyMap.get(member.id) ?? null
 
     const card: Card = {
       id: member.id,
