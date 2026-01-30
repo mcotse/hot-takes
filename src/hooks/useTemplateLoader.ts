@@ -30,7 +30,7 @@ export const useTemplateLoader = (): UseTemplateLoaderReturn => {
 
   const loadTemplate = useCallback(async (template: BundledTemplate): Promise<TemplateLoadResult> => {
     setIsLoading(true)
-    setProgress({ current: 0, total: template.items.length + 1, name: 'Creating board...' })
+    setProgress({ current: 1, total: template.items.length + 1, name: 'Creating board...' })
 
     const errors: string[] = []
     let imagesCreated = 0
