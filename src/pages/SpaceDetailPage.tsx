@@ -82,11 +82,23 @@ const SyncBoardModal = ({
   onClose: () => void
   localBoards: Board[]
   existingBoardIds: Set<string>
-  onSync: (board: Board) => void
+  onSync: (board: Board) => Promise<void>
 }) => {
+  const [isSyncing, setIsSyncing] = useState(false)
+
   if (!isOpen) return null
 
   const unsyncedBoards = localBoards.filter((b) => !existingBoardIds.has(b.id) && !b.deletedAt)
+
+  const handleSync = async (board: Board) => {
+    setIsSyncing(true)
+    try {
+      await onSync(board)
+      onClose()
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -95,7 +107,7 @@ const SyncBoardModal = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="absolute inset-0 bg-black/40"
-        onClick={onClose}
+        onClick={isSyncing ? undefined : onClose}
       />
 
       <motion.div
@@ -123,11 +135,9 @@ const SyncBoardModal = ({
             {unsyncedBoards.map((board) => (
               <button
                 key={board.id}
-                onClick={() => {
-                  onSync(board)
-                  onClose()
-                }}
-                className="w-full text-left p-3 bg-white border-2 border-[#2d2d2d] hover:bg-[#fff9c4] transition-colors font-['Patrick_Hand']"
+                onClick={() => handleSync(board)}
+                disabled={isSyncing}
+                className="w-full text-left p-3 bg-white border-2 border-[#2d2d2d] hover:bg-[#fff9c4] transition-colors font-['Patrick_Hand'] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ borderRadius: wobbly.sm }}
               >
                 {board.name}
@@ -136,7 +146,7 @@ const SyncBoardModal = ({
           </div>
         )}
 
-        <Button variant="secondary" onClick={onClose} className="w-full">
+        <Button variant="secondary" onClick={onClose} className="w-full" disabled={isSyncing}>
           Cancel
         </Button>
       </motion.div>
@@ -149,7 +159,7 @@ export const SpaceDetailPage = ({
   onBack,
   onBoardSelect,
 }: SpaceDetailPageProps) => {
-  const { allBoards, myBoards, syncBoard, canCreateBoard } = useSpaceBoards(spaceId)
+  const { allBoards, myBoards, syncBoard, canCreateBoard, error: boardError } = useSpaceBoards(spaceId)
   const { members, isAdmin, currentMemberId, removeMember } = useSpaceMembers(spaceId)
   const { getImageUrl } = useImageStorage()
   const [activeTab, setActiveTab] = useState<TabId>('my')
@@ -271,6 +281,16 @@ export const SpaceDetailPage = ({
           ))}
         </div>
       </header>
+
+      {/* Error banner */}
+      {boardError && (
+        <div
+          className="mx-4 mt-3 p-3 bg-[#ffebee] border-2 border-[#ff4d4d] text-[#c62828] font-['Patrick_Hand']"
+          style={{ borderRadius: wobbly.sm }}
+        >
+          {boardError}
+        </div>
+      )}
 
       {/* Member filter (All Boards tab only) */}
       {activeTab === 'all' && members.length > 1 && (
