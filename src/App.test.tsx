@@ -32,15 +32,16 @@ describe('App', () => {
   })
 
   describe('navigation', () => {
-    it('shows Boards view by default', () => {
+    it('shows Home view by default', () => {
       render(<App />)
-      expect(screen.getByText(/my rankings/i)).toBeInTheDocument()
+      // Home tab shows Spaces page with "Spaces" header or empty state
+      expect(screen.getByRole('button', { name: /home/i })).toBeInTheDocument()
     })
 
-    it('shows Boards tab as active by default', () => {
+    it('shows Home tab as active by default', () => {
       render(<App />)
-      const boardsTab = screen.getByRole('button', { name: /boards/i })
-      expect(boardsTab).toHaveAttribute('aria-current', 'page')
+      const homeTab = screen.getByRole('button', { name: /home/i })
+      expect(homeTab).toHaveAttribute('aria-current', 'page')
     })
 
     it('switches to Settings view when Settings tab is clicked', async () => {
@@ -51,13 +52,14 @@ describe('App', () => {
       expect(screen.getByText(/settings/i, { selector: 'h1' })).toBeInTheDocument()
     })
 
-    it('switches back to Boards view', async () => {
+    it('switches back to Home view', async () => {
       const user = userEvent.setup()
       render(<App />)
 
       await user.click(screen.getByRole('button', { name: /settings/i }))
-      await user.click(screen.getByRole('button', { name: /boards/i }))
-      expect(screen.getByText(/my rankings/i)).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /home/i }))
+      const homeTab = screen.getByRole('button', { name: /home/i })
+      expect(homeTab).toHaveAttribute('aria-current', 'page')
     })
   })
 

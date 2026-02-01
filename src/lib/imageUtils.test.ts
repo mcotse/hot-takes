@@ -251,13 +251,13 @@ describe('Image Utilities', () => {
     })
 
     it('returns correct dimensions', async () => {
-      mockImageLoad(1200, 900) // Will be scaled to 800x600 (max 800)
+      mockImageLoad(1200, 900) // Will be scaled to 600x450 (max 600)
       const sourceBlob = new Blob(['test'], { type: 'image/jpeg' })
 
       const result = await processImage(sourceBlob)
 
-      expect(result.width).toBe(800)
-      expect(result.height).toBe(600)
+      expect(result.width).toBe(600)
+      expect(result.height).toBe(450)
     })
 
     it('works with File objects', async () => {
